@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>甲子園予想 — ポイント制トーナメント予想</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-logo">⚾</span>
+    <span class="brand-name">甲子園予想</span>
+    <span class="brand-badge">ポイント制・賭博なし</span>
+  </div>
+  <div class="userbox">
+    <select id="user-select"></select>
+    <input id="new-user-name" type="text" placeholder="ニックネーム" maxlength="20">
+    <button id="add-user-btn" class="btn small">参加</button>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="matches">試合予想</button>
+  <button class="tab" data-tab="futures">長期（優勝）</button>
+  <button class="tab" data-tab="ranking">ランキング</button>
+  <button class="tab" data-tab="admin">管理</button>
+  <select id="tournament-select" class="tourn-select"></select>
+</nav>
+
+<div class="betbar">
+  <span id="balance-chip" class="balance-chip">持ち点 —</span>
+  <span class="betbar-label">試合ベット: 1タップ +10pt（1試合 最大100pt）／ 優勝ベット: 100pt〜</span>
+  <button id="relief-btn" class="btn small relief" hidden>救済チップ +100</button>
+</div>
+
+<main>
+  <section id="tab-matches" class="tab-panel active">
+    <div class="filter-row">
+      <select id="filter-block"></select>
+      <select id="filter-pref"></select>
+      <label class="radio-label"><input type="checkbox" id="show-past"> 昨日以前も表示</label>
+    </div>
+    <p class="hint">勝つと思う学校をタップするたび +10pt（同じ学校を連打で増額、最大100pt）。オッズはベットが入るたびにポイント量加重で変動し（▲▼）、<b>締切時点のプールで確定</b>。的中で ベット額 × オッズ（上限3.0倍）。🤖 は AI の参考予想です。</p>
+    <div id="match-list"></div>
+  </section>
+
+  <section id="tab-futures" class="tab-panel">
+    <div class="futures-head">
+      <h2>優勝校予想</h2>
+      <p class="hint">大会ごとに1校、<b>1ベット原則100pt</b>。的中で <b>100pt × オッズ（上限5.0倍）</b>。レイト参加も可能ですが、1ラウンド消化ごとに参加コストが +100pt（現在: <b><span id="futures-cost">100</span>pt</b>）。増額分は払戻に含まれない「後出し料」です。締切は決勝開始まで。地方大会の優勝予想は「甲子園出場校」の予想でもあります。</p>
+      <p id="futures-status" class="futures-status"></p>
+    </div>
+    <div id="futures-grid" class="futures-grid"></div>
+  </section>
+
+  <section id="tab-ranking" class="tab-panel">
+    <h2>ランキング（全大会通算・確定収支順）</h2>
+    <table class="rank-table">
+      <thead><tr><th>順位</th><th>ニックネーム</th><th>収支</th><th>持ち点</th><th>的中 / 予想</th><th>救済</th></tr></thead>
+      <tbody id="ranking-body"></tbody>
+    </table>
+    <p class="hint">収支 = 決着済みベットの「獲得 − ベット額」の合計。持ち点にはベット中のポイントを含みません。救済 = 救済チップ受領回数。</p>
+  </section>
+
+  <section id="tab-admin" class="tab-panel">
+    <h2>管理</h2>
+    <div class="admin-card">
+      <h3>試合結果の入力</h3>
+      <div class="form-row">
+        <select id="result-match"></select>
+      </div>
+      <div class="form-row" id="result-winner-row"></div>
+      <div class="form-row">
+        <input id="result-score1" type="number" min="0" placeholder="先攻スコア">
+        <span class="vs">-</span>
+        <input id="result-score2" type="number" min="0" placeholder="後攻スコア">
+        <button id="result-submit" class="btn">結果を確定</button>
+      </div>
+      <p class="hint">確定後も同じフォームから修正できます（勝者・スコアを上書き）。</p>
+    </div>
+
+    <div class="admin-card">
+      <h3>試合の追加（再抽選・勝ち上がり後の組み合わせ登録用）</h3>
+      <div class="form-row">
+        <select id="add-tournament"></select>
+        <select id="add-round"></select>
+        <input id="add-day" type="date">
+        <input id="add-game-no" type="number" min="1" value="1" title="第N試合">
+        <input id="add-time" type="time" value="08:00">
+      </div>
+      <div class="form-row">
+        <select id="add-team1"></select>
+        <span class="vs">vs</span>
+        <select id="add-team2"></select>
+        <button id="add-match-btn" class="btn">試合を追加</button>
+      </div>
+    </div>
+
+    <div class="admin-card">
+      <h3>大会の追加</h3>
+      <div class="form-row">
+        <input id="tourn-name" type="text" placeholder="大会名（例: 西東京大会）" maxlength="30">
+        <select id="tourn-kind">
+          <option value="regional">地方大会（1回戦5pt〜決勝20pt・優勝50pt）</option>
+          <option value="koshien">全国大会（1回戦10pt〜決勝50pt・優勝100pt）</option>
+        </select>
+        <button id="add-tourn-btn" class="btn">大会を追加</button>
+      </div>
+    </div>
+
+    <div class="admin-card">
+      <h3>学校の追加（地方大会の出場校登録用）</h3>
+      <div class="form-row">
+        <select id="team-tournament"></select>
+        <input id="team-name" type="text" placeholder="校名" maxlength="30">
+        <input id="team-pref" type="text" placeholder="都道府県" maxlength="10">
+        <button id="add-team-btn" class="btn">学校を追加</button>
+      </div>
+    </div>
+    <p class="hint">結果の自動取得（M3）は規約確認のうえで後日追加予定。それまではここから手動入力。</p>
+  </section>
+</main>
+
+<div id="toast" class="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
