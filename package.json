@@ -4,7 +4,8 @@
   "private": true,
   "description": "甲子園トーナメント予想アプリ（ポイント制・賭博なし・ローカル利用）",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "export": "node export.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0",
