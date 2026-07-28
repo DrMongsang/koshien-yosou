@@ -55,3 +55,6 @@
 
 ## GitHub
 - [x] リポジトリ作成・初回プッシュ（2026-07-25: https://github.com/DrMongsang/koshien-yosou ・private。DB はコミット対象外）
+- [x] public 化＋README注意事項（2026-07-25）
+- [x] GitHub Pages 公開ボード（2026-07-25: https://drmongsang.github.io/koshien-yosou/ 。読み取り専用。更新手順=サーバ起動中に `npm run export` → commit & push）
+- [x] 7/25 東東京準決勝の結果反映・決勝登録・清算（同日）
