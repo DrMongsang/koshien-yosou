@@ -13,10 +13,15 @@
     <span class="brand-name">甲子園予想</span>
     <span class="brand-badge">ポイント制・賭博なし</span>
   </div>
-  <div class="userbox">
-    <select id="user-select"></select>
-    <input id="new-user-name" type="text" placeholder="ニックネーム" maxlength="20">
-    <button id="add-user-btn" class="btn small">参加</button>
+  <div class="userbox" id="login-box">
+    <input id="login-name" type="text" placeholder="ニックネーム" maxlength="20">
+    <input id="login-pass" type="password" placeholder="パスワード" maxlength="30">
+    <button id="login-btn" class="btn small">ログイン</button>
+    <button id="signup-btn" class="btn small signup">新規参加</button>
+  </div>
+  <div class="userbox" id="me-box" hidden>
+    <span id="me-name" class="me-name"></span>
+    <button id="logout-btn" class="btn small logout">ログアウト</button>
   </div>
 </header>
 
@@ -30,7 +35,14 @@
 
 <div class="betbar">
   <span id="balance-chip" class="balance-chip">持ち点 —</span>
-  <span class="betbar-label">試合ベット: 1タップ +10pt（1試合 最大100pt）／ 優勝ベット: 100pt〜</span>
+  <span class="betbar-label">タップ増分</span>
+  <div id="chip-row" class="chip-row">
+    <button class="chip" data-stake="10">+10</button>
+    <button class="chip" data-stake="50">+50</button>
+    <button class="chip" data-stake="100">+100</button>
+    <button class="chip" data-stake="500">+500</button>
+  </div>
+  <span class="betbar-label">上限なし（持ち点の範囲内）</span>
   <button id="relief-btn" class="btn small relief" hidden>救済チップ +100</button>
 </div>
 
@@ -41,7 +53,7 @@
       <select id="filter-pref"></select>
       <label class="radio-label"><input type="checkbox" id="show-past"> 昨日以前も表示</label>
     </div>
-    <p class="hint">勝つと思う学校をタップするたび +10pt（同じ学校を連打で増額、最大100pt）。オッズはベットが入るたびにポイント量加重で変動し（▲▼）、<b>締切時点のプールで確定</b>。的中で ベット額 × オッズ（上限3.0倍）。🤖 は AI の参考予想です。</p>
+    <p class="hint">勝つと思う学校をタップするたび選択中の増分だけ積み増し（上限なし・持ち点の範囲内）。オッズはベットが入るたびにポイント量加重で変動し（▲▼）、<b>締切時点のプールで確定</b>。的中で ベット額 × オッズ（上限3.0倍）。<b>9回で決着しない場合は同点扱いで没収</b>（延長で勝ったチームに張っていた人のみ半金返還）。不戦勝など試合不成立は全額返還。🤖 は AI の参考予想です。</p>
     <div id="match-list"></div>
   </section>
 
@@ -65,6 +77,15 @@
 
   <section id="tab-admin" class="tab-panel">
     <h2>管理</h2>
+    <div class="admin-card" id="admin-login-card">
+      <h3>管理者ログイン</h3>
+      <div class="form-row">
+        <input id="admin-pass" type="password" placeholder="管理者パスワード">
+        <button id="admin-login-btn" class="btn">ログイン</button>
+        <span id="admin-status" class="hint"></span>
+      </div>
+      <p class="hint">パスワードは server フォルダの config.json で変更できます。</p>
+    </div>
     <div class="admin-card">
       <h3>試合結果の入力</h3>
       <div class="form-row">
@@ -75,9 +96,13 @@
         <input id="result-score1" type="number" min="0" placeholder="先攻スコア">
         <span class="vs">-</span>
         <input id="result-score2" type="number" min="0" placeholder="後攻スコア">
-        <button id="result-submit" class="btn">結果を確定</button>
+        <label class="radio-label"><input type="checkbox" id="result-extra"> 延長決着（勝者側半金返還・他は没収）</label>
       </div>
-      <p class="hint">確定後も同じフォームから修正できます（勝者・スコアを上書き）。</p>
+      <div class="form-row">
+        <button id="result-submit" class="btn">結果を確定</button>
+        <button id="result-void" class="btn void">不成立（全額返還）</button>
+      </div>
+      <p class="hint">確定後も同じフォームから修正できます（勝者・スコアを上書き）。不成立は不戦勝・中止用。</p>
     </div>
 
     <div class="admin-card">
