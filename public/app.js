@@ -1,10 +1,10 @@
 // 甲子園予想アプリ — フロントエンド
-const TAP_STEP = 10; // 1タップのベット増分
-
 const state = {
   data: null,
-  userId: Number(localStorage.getItem('koshien_user')) || null,
+  token: localStorage.getItem('koshien_token') || null,       // ユーザーのログイントークン
+  adminToken: localStorage.getItem('koshien_admin') || null,  // 管理者トークン（別枠）
   tournamentId: Number(localStorage.getItem('koshien_tournament')) || null,
+  step: Number(localStorage.getItem('koshien_step')) || 10,   // 1タップの増分
   filterBlock: '',
   filterPref: '',
   showPast: false,
@@ -34,23 +34,28 @@ function toast(msg, isError = false) {
   setTimeout(() => { el.className = 'toast'; }, 2500);
 }
 
-async function api(path, body) {
-  const res = await fetch(path, body ? {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  } : undefined);
+async function api(path, body, token = state.token) {
+  const headers = {};
+  if (token) headers['x-token'] = token;
+  if (body) headers['Content-Type'] = 'application/json';
+  const res = await fetch(path, body
+    ? { method: 'POST', headers, body: JSON.stringify(body) }
+    : { headers });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || '通信エラー');
   return json;
 }
+const adminApi = (path, body) => {
+  if (!state.adminToken) throw new Error('管理タブで管理者ログインしてください');
+  return api(path, body, state.adminToken);
+};
 
 async function load() {
-  const q = state.userId ? `?user_id=${state.userId}` : '';
-  state.data = await api(`/api/bootstrap${q}`);
-  if (state.userId && !state.data.users.some((u) => u.id === state.userId)) {
-    state.userId = null;
-    localStorage.removeItem('koshien_user');
+  state.data = await api('/api/bootstrap');
+  // トークン失効（サーバ再起動など）を検知したらログアウト状態に戻す
+  if (state.token && !state.data.me) {
+    state.token = null;
+    localStorage.removeItem('koshien_token');
   }
   if (!state.data.tournaments.some((t) => t.id === state.tournamentId)) {
     state.tournamentId = state.data.tournaments[0]?.id ?? null;
@@ -59,7 +64,7 @@ async function load() {
 }
 
 function renderAll() {
-  renderUsers();
+  renderLogin();
   renderTournamentSelect();
   renderBetBar();
   renderFilters();
@@ -76,13 +81,12 @@ function fillSelect(el, html, keepValue = true) {
   if (keepValue && prev && [...el.options].some((o) => o.value === prev)) el.value = prev;
 }
 
-// ---- ユーザー・大会セレクタ・ベットバー -----------------------------------------
-function renderUsers() {
-  fillSelect($('#user-select'),
-    '<option value="">ユーザーを選択</option>' +
-    state.data.users.map((u) =>
-      `<option value="${u.id}" ${u.id === state.userId ? 'selected' : ''}>${esc(u.name)}</option>`).join(''),
-    false);
+// ---- ログイン・大会セレクタ・ベットバー -----------------------------------------
+function renderLogin() {
+  const me = state.data.me;
+  $('#login-box').hidden = !!me;
+  $('#me-box').hidden = !me;
+  if (me) $('#me-name').textContent = `⚾ ${me.name ?? '管理者'}`;
 }
 
 function renderTournamentSelect() {
@@ -96,6 +100,9 @@ function renderBetBar() {
   const bal = state.data.my_balance;
   $('#balance-chip').textContent =
     bal == null ? '持ち点 —' : `持ち点 ${bal.toLocaleString()}pt`;
+  document.querySelectorAll('.chip').forEach((c) => {
+    c.classList.toggle('selected', Number(c.dataset.stake) === state.step);
+  });
   $('#relief-btn').hidden = !(bal != null && bal < state.data.min_stake);
 }
 
@@ -190,6 +197,7 @@ function renderMatches() {
 
 function matchCard(m) {
   const finished = m.status === 'finished';
+  const voided = m.status === 'void';
   const tourn = state.data.tournaments.find((t) => t.id === m.tournament_id);
   const btn = (team, mult) => {
     const picked = m.my_pick === team.id;
@@ -198,8 +206,8 @@ function matchCard(m) {
     if (finished) cls.push(m.winner_id === team.id ? 'winner' : 'loser');
     const arrow = m.locked ? '' : oddsArrow(`${m.id}:${team.id}`, mult);
     const stakeTag = picked && m.my_stake != null
-      ? `<span class="stake-tag">${m.my_stake}pt</span>` : '';
-    return `<button class="${cls.join(' ')}" data-match="${m.id}" data-team="${team.id}" ${m.locked ? 'disabled' : ''}>
+      ? `<span class="stake-tag">${m.my_stake.toLocaleString()}pt</span>` : '';
+    return `<button class="${cls.join(' ')}" data-match="${m.id}" data-team="${team.id}" ${m.locked || voided ? 'disabled' : ''}>
       <span><span class="team-name">${esc(team.name)}</span><span class="team-pref">${esc(team.prefecture)}</span>${stakeTag}</span>
       <span class="odds-chip">${oddsText(mult)}${arrow}</span>
     </button>`;
@@ -213,15 +221,24 @@ function matchCard(m) {
   }
 
   let foot;
-  if (finished) {
+  if (voided) {
+    foot = `<div class="match-foot"><span>試合不成立 — ベットは全額返還されました</span></div>`;
+  } else if (finished) {
     const score = (m.score1 != null && m.score2 != null) ? `${m.score1} - ${m.score2}` : '';
+    const extraTag = m.extra_innings ? '（延長）' : '';
     let mine = '';
     if (m.my_pick != null) {
-      mine = m.my_payout > 0
-        ? `<span class="result-pill hit">○ 的中 +${m.my_payout}pt</span>`
-        : `<span class="result-pill miss">× はずれ −${m.my_stake}pt</span>`;
+      if (m.extra_innings) {
+        mine = m.my_payout > 0
+          ? `<span class="result-pill hit">△ 延長勝ち 半金返還 +${m.my_payout}pt</span>`
+          : `<span class="result-pill miss">× 没収 −${m.my_stake}pt</span>`;
+      } else {
+        mine = m.my_payout > 0
+          ? `<span class="result-pill hit">○ 的中 +${m.my_payout}pt</span>`
+          : `<span class="result-pill miss">× はずれ −${m.my_stake}pt</span>`;
+      }
     }
-    foot = `<div class="match-foot"><span>試合終了 ${score}（プール ${m.dist.p1} : ${m.dist.p2}pt）</span>${mine}</div>`;
+    foot = `<div class="match-foot"><span>試合終了${extraTag} ${score}（プール ${m.dist.p1} : ${m.dist.p2}pt）</span>${mine}</div>`;
   } else if (m.locked) {
     foot = `<div class="match-foot"><span>締切済み・オッズ確定（プール ${m.dist.p1} : ${m.dist.p2}pt）</span></div>`;
   } else {
@@ -233,7 +250,6 @@ function matchCard(m) {
   return `<div class="match-card">
     <div class="match-meta">
       <span class="round-chip">${esc(tourn?.name ?? '')}｜${esc(m.round_label)} 第${m.game_no}試合 ${fmtTime(m.scheduled_at)}</span>
-      <span>最大 ${m.max_stake}pt</span>
     </div>
     <div class="pick-row">
       ${btn(m.team1, m.odds.mult1)}
@@ -244,26 +260,22 @@ function matchCard(m) {
   </div>`;
 }
 
-// タップでベット: 同じ学校を連打すると +10pt ずつ増額、別の学校なら 10pt で張り直し
+// タップでベット: 同じ学校を連打すると選択中の増分ずつ積み増し、別の学校なら増分額で張り直し
 async function pick(matchId, teamId) {
-  if (!state.userId) return toast('先に右上でユーザーを選択（または参加）してください', true);
-  const m = state.data.matches.find((x) => x.id === matchId);
-  let stake = TAP_STEP;
-  if (m && m.my_pick === teamId) {
-    if (m.my_stake >= m.max_stake) return toast(`この試合の上限は ${m.max_stake}pt です`, true);
-    stake = m.my_stake + TAP_STEP;
+  if (!state.data.me || state.data.me.admin) {
+    return toast('右上からニックネームとパスワードでログインしてください', true);
   }
+  const m = state.data.matches.find((x) => x.id === matchId);
+  const stake = (m && m.my_pick === teamId) ? m.my_stake + state.step : state.step;
   try {
-    await api('/api/predictions', {
-      user_id: state.userId, match_id: matchId, team_id: teamId, stake,
-    });
+    await api('/api/predictions', { match_id: matchId, team_id: teamId, stake });
     await load();
   } catch (e) { toast(e.message, true); }
 }
 
 async function cancelBet(matchId) {
   try {
-    await api('/api/predictions/cancel', { user_id: state.userId, match_id: matchId });
+    await api('/api/predictions/cancel', { match_id: matchId });
     await load();
     toast('ベットを取り消しました（全額返却）');
   } catch (e) { toast(e.message, true); }
@@ -305,11 +317,12 @@ function renderFutures() {
 
   grid.querySelectorAll('.future-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      if (!state.userId) return toast('先に右上でユーザーを選択（または参加）してください', true);
+      if (!state.data.me || state.data.me.admin) {
+        return toast('右上からニックネームとパスワードでログインしてください', true);
+      }
       try {
         const r = await api('/api/champion', {
-          user_id: state.userId, tournament_id: state.tournamentId,
-          team_id: Number(btn.dataset.team),
+          tournament_id: state.tournamentId, team_id: Number(btn.dataset.team),
         });
         await load();
         toast(`優勝予想にベットしました（${r.cost}pt）`);
@@ -342,11 +355,13 @@ function renderRanking() {
 
 // ---- 管理 ---------------------------------------------------------------------
 function renderAdmin() {
+  $('#admin-status').textContent = state.adminToken ? '✔ 管理者ログイン中' : '';
   const { matches, teams, tournaments } = state.data;
   const tName = (id) => tournaments.find((t) => t.id === id)?.name ?? '?';
   const matchLabel = (m) =>
     `[${tName(m.tournament_id)}] ${fmtDay(m.day)} ${m.round_label}第${m.game_no}試合 ` +
-    `${m.team1.name} vs ${m.team2.name}` + (m.status === 'finished' ? '【確定済】' : '');
+    `${m.team1.name} vs ${m.team2.name}` +
+    (m.status === 'finished' ? '【確定済】' : m.status === 'void' ? '【不成立】' : '');
   fillSelect($('#result-match'),
     '<option value="">試合を選択</option>' +
     matches.map((m) => `<option value="${m.id}">${esc(matchLabel(m))}</option>`).join(''));
@@ -392,6 +407,46 @@ document.querySelectorAll('.tab').forEach((tab) => {
   });
 });
 
+async function doAuth(path) {
+  const name = $('#login-name').value.trim();
+  const password = $('#login-pass').value;
+  if (!name || !password) return toast('ニックネームとパスワードを入力してください', true);
+  try {
+    const r = await api(path, { name, password }, null);
+    state.token = r.token;
+    localStorage.setItem('koshien_token', r.token);
+    $('#login-pass').value = '';
+    await load();
+    toast(`ようこそ、${r.name} さん！`);
+  } catch (e) { toast(e.message, true); }
+}
+$('#login-btn').addEventListener('click', () => doAuth('/api/login'));
+$('#signup-btn').addEventListener('click', () => doAuth('/api/users'));
+$('#logout-btn').addEventListener('click', async () => {
+  state.token = null;
+  localStorage.removeItem('koshien_token');
+  await load();
+});
+
+$('#admin-login-btn').addEventListener('click', async () => {
+  try {
+    const r = await api('/api/admin/login', { password: $('#admin-pass').value }, null);
+    state.adminToken = r.token;
+    localStorage.setItem('koshien_admin', r.token);
+    $('#admin-pass').value = '';
+    renderAdmin();
+    toast('管理者としてログインしました');
+  } catch (e) { toast(e.message, true); }
+});
+
+document.querySelectorAll('.chip').forEach((c) => {
+  c.addEventListener('click', () => {
+    state.step = Number(c.dataset.stake);
+    localStorage.setItem('koshien_step', state.step);
+    renderBetBar();
+  });
+});
+
 $('#filter-block').addEventListener('change', (e) => {
   state.filterBlock = e.target.value;
   state.filterPref = '';
@@ -408,9 +463,8 @@ $('#show-past').addEventListener('change', (e) => {
 });
 
 $('#relief-btn').addEventListener('click', async () => {
-  if (!state.userId) return;
   try {
-    await api('/api/relief', { user_id: state.userId });
+    await api('/api/relief', {});
     await load();
     toast('救済チップ +100pt を受け取りました');
   } catch (e) { toast(e.message, true); }
@@ -422,26 +476,6 @@ $('#tournament-select').addEventListener('change', (e) => {
   renderAll();
 });
 
-$('#user-select').addEventListener('change', (e) => {
-  state.userId = Number(e.target.value) || null;
-  if (state.userId) localStorage.setItem('koshien_user', state.userId);
-  else localStorage.removeItem('koshien_user');
-  load().catch((err) => toast(err.message, true));
-});
-
-$('#add-user-btn').addEventListener('click', async () => {
-  const name = $('#new-user-name').value.trim();
-  if (!name) return toast('ニックネームを入力してください', true);
-  try {
-    const u = await api('/api/users', { name });
-    state.userId = u.id;
-    localStorage.setItem('koshien_user', u.id);
-    $('#new-user-name').value = '';
-    await load();
-    toast(`ようこそ、${name} さん！持ち点 1000pt からスタートです`);
-  } catch (e) { toast(e.message, true); }
-});
-
 $('#result-match').addEventListener('change', renderWinnerRadios);
 $('#add-tournament').addEventListener('change', renderAddMatchOptions);
 
@@ -451,13 +485,26 @@ $('#result-submit').addEventListener('click', async () => {
   if (!matchId || !winner) return toast('試合と勝者を選択してください', true);
   const s1 = $('#result-score1').value, s2 = $('#result-score2').value;
   try {
-    await api('/api/admin/result', {
+    await adminApi('/api/admin/result', {
       match_id: matchId, winner_id: Number(winner.value),
       score1: s1 === '' ? null : Number(s1), score2: s2 === '' ? null : Number(s2),
+      extra: $('#result-extra').checked,
     });
     $('#result-score1').value = ''; $('#result-score2').value = '';
+    $('#result-extra').checked = false;
     await load();
     toast('結果を確定しました');
+  } catch (e) { toast(e.message, true); }
+});
+
+$('#result-void').addEventListener('click', async () => {
+  const matchId = Number($('#result-match').value);
+  if (!matchId) return toast('試合を選択してください', true);
+  if (!confirm('この試合を不成立にして、全ベットを返還しますか？')) return;
+  try {
+    await adminApi('/api/admin/void', { match_id: matchId });
+    await load();
+    toast('試合を不成立にしました（全額返還）');
   } catch (e) { toast(e.message, true); }
 });
 
@@ -465,7 +512,7 @@ $('#add-match-btn').addEventListener('click', async () => {
   const day = $('#add-day').value;
   if (!day) return toast('日付を入力してください', true);
   try {
-    await api('/api/admin/matches', {
+    await adminApi('/api/admin/matches', {
       tournament_id: Number($('#add-tournament').value),
       round: Number($('#add-round').value), day,
       game_no: Number($('#add-game-no').value) || 1,
@@ -481,7 +528,7 @@ $('#add-tourn-btn').addEventListener('click', async () => {
   const name = $('#tourn-name').value.trim();
   if (!name) return toast('大会名を入力してください', true);
   try {
-    const t = await api('/api/admin/tournaments', { name, kind: $('#tourn-kind').value });
+    const t = await adminApi('/api/admin/tournaments', { name, kind: $('#tourn-kind').value });
     state.tournamentId = t.id;
     localStorage.setItem('koshien_tournament', t.id);
     $('#tourn-name').value = '';
@@ -495,7 +542,7 @@ $('#add-team-btn').addEventListener('click', async () => {
   const prefecture = $('#team-pref').value.trim();
   if (!name || !prefecture) return toast('校名と都道府県を入力してください', true);
   try {
-    await api('/api/admin/teams', {
+    await adminApi('/api/admin/teams', {
       tournament_id: Number($('#team-tournament').value), name, prefecture,
     });
     $('#team-name').value = '';

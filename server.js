@@ -2,6 +2,7 @@
 // 起動: npm start → http://localhost:3310
 const express = require('express');
 const Database = require('better-sqlite3');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -10,11 +11,19 @@ const MULT_MIN = 1.0;
 const MULT_MAX = 3.0;          // 試合オッズの上限
 const CHAMPION_MULT_MAX = 5.0; // 優勝オッズの上限
 const START_BALANCE = 1000;    // 初期持ち点
-const MIN_STAKE = 10;          // 試合ベットの1タップ単位（下限）
-const MATCH_MAX_STAKE = 100;   // 試合ベット上限（1タップ10pt × 10回）
+const MIN_STAKE = 10;          // 試合ベットの下限（上限なし・持ち点の範囲内）
 const CHAMPION_BASE = 100;     // 優勝ベットの原則額（払戻はこの額 × オッズ）
 const CHAMPION_LATE_FEE = 100; // レイト参加費: 1ラウンド消化ごとの参加コスト増分
 const RELIEF_AMOUNT = 100;     // 救済チップ
+const EXTRA_REFUND_RATE = 0.5; // 延長決着: 勝者側ベットの半金返還率（敗者側・同点扱い分は没収）
+
+// 管理者パスワード（config.json・git管理外。初回起動時に生成されるので変更推奨）
+const CONFIG_PATH = path.join(__dirname, 'config.json');
+if (!fs.existsSync(CONFIG_PATH)) {
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify({ admin_password: 'koshien-admin' }, null, 2));
+  console.log('config.json を生成しました（管理者パスワード初期値: koshien-admin。変更推奨）');
+}
+const CONFIG = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
 
 // 大会種別テンプレート: round(1始まり) → ラベル・基礎pt（基礎ptはステーク上限の基準）
 const TEMPLATES = {
@@ -65,7 +74,8 @@ db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,
-  relief_count INTEGER NOT NULL DEFAULT 0
+  relief_count INTEGER NOT NULL DEFAULT 0,
+  password_hash TEXT                 -- NULL = 未設定（初回ログイン時に設定される）
 );
 CREATE TABLE IF NOT EXISTS tournaments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,7 +102,8 @@ CREATE TABLE IF NOT EXISTS matches (
   score1 INTEGER,
   score2 INTEGER,
   scheduled_at TEXT,                 -- 'YYYY-MM-DDTHH:mm'（ローカル時刻）
-  status TEXT NOT NULL DEFAULT 'scheduled'  -- scheduled | finished
+  status TEXT NOT NULL DEFAULT 'scheduled',  -- scheduled | finished | void（不成立＝全額返還）
+  extra_innings INTEGER NOT NULL DEFAULT 0   -- 1 = 延長決着（勝者側ベット半金返還・他は没収）
 );
 CREATE TABLE IF NOT EXISTS predictions (
   user_id INTEGER NOT NULL REFERENCES users(id),
@@ -118,6 +129,54 @@ CREATE TABLE IF NOT EXISTS ai_predictions (
   updated_at TEXT NOT NULL
 );
 `);
+
+// 既存DBへの追加カラム移行（データ保持のため ALTER で行う）
+{
+  const userCols = db.prepare('PRAGMA table_info(users)').all();
+  if (userCols.length && !userCols.some((c) => c.name === 'password_hash')) {
+    db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
+  }
+  const matchCols2 = db.prepare('PRAGMA table_info(matches)').all();
+  if (matchCols2.length && !matchCols2.some((c) => c.name === 'extra_innings')) {
+    db.exec('ALTER TABLE matches ADD COLUMN extra_innings INTEGER NOT NULL DEFAULT 0');
+  }
+}
+
+// ---- 認証（名前＋パスワード。トークンはメモリ保持＝サーバ再起動で要再ログイン）----
+const tokens = new Map(); // token → { user_id } | { admin: true }
+function hashPassword(pw) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  return `${salt}$${crypto.scryptSync(pw, salt, 32).toString('hex')}`;
+}
+function verifyPassword(pw, stored) {
+  const [salt, h] = String(stored).split('$');
+  if (!salt || !h) return false;
+  return crypto.timingSafeEqual(Buffer.from(h, 'hex'), crypto.scryptSync(pw, salt, 32));
+}
+function issueToken(payload) {
+  const t = crypto.randomUUID();
+  tokens.set(t, payload);
+  return t;
+}
+function auth(req) {
+  return tokens.get(req.get('x-token') || '') || null;
+}
+// ベット系: 通常ユーザーは自分自身のみ、管理者は body.user_id で代理操作可
+function actorUserId(req, res) {
+  const session = auth(req);
+  if (!session) { res.status(401).json({ error: 'ログインしてください' }); return null; }
+  if (session.admin) {
+    const uid = Number(req.body.user_id);
+    if (!uid) { res.status(400).json({ error: '管理者操作は user_id の指定が必要です' }); return null; }
+    return uid;
+  }
+  return session.user_id;
+}
+function requireAdmin(req, res) {
+  const session = auth(req);
+  if (!session?.admin) { res.status(403).json({ error: '管理者ログインが必要です' }); return false; }
+  return true;
+}
 
 // ---- ダミーデータ投入（tournaments が空のときだけ）----------------------------
 // 学校名はすべて架空。本大会の組み合わせ抽選後に実データへ差し替える（plan.md M4）。
@@ -188,9 +247,6 @@ function roundsOf(tournament) {
 }
 function roundInfo(tournament, round) {
   return roundsOf(tournament)[round - 1] || { label: `第${round}ラウンド`, base: 10 };
-}
-function maxStakeOf() {
-  return MATCH_MAX_STAKE;
 }
 function deadlineOf(match) {
   return new Date(match.scheduled_at || `${match.day}T08:00`);
@@ -279,9 +335,22 @@ function computeStats() {
     const s = stats.get(p.user_id);
     const m = mMap.get(p.match_id);
     if (!s || !m) continue;
+    if (m.status === 'void') continue; // 不成立（不戦勝など）＝ステーク全額返還扱い
     s.balance -= p.stake;
     if (m.status !== 'finished') continue;
     s.predicted++;
+    if (m.extra_innings) {
+      // 9回で決着せず＝同点扱いで没収。ただし延長勝者側ベットは半金返還
+      if (p.predicted_winner_id === m.winner_id) {
+        const refund = Math.round(p.stake * EXTRA_REFUND_RATE);
+        s.hits++;
+        s.balance += refund;
+        s.profit += refund - p.stake;
+      } else {
+        s.profit -= p.stake;
+      }
+      continue;
+    }
     const d = distFor(m);
     const mult = m.winner_id === m.team1_id ? d.mult1 : d.mult2;
     if (p.predicted_winner_id === m.winner_id && mult != null) {
@@ -359,7 +428,11 @@ app.get('/api/events', (req, res) => {
 
 // 画面表示に必要な全データを1回で返す
 app.get('/api/bootstrap', (req, res) => {
-  const userId = Number(req.query.user_id) || null;
+  const session = auth(req);
+  // 自分のベットは自分（または管理者の代理照会）だけが見られる
+  const userId = session
+    ? (session.admin ? Number(req.query.user_id) || null : session.user_id)
+    : null;
   const now = new Date();
   const users = db.prepare('SELECT id, name FROM users ORDER BY id').all();
   const teams = db.prepare('SELECT * FROM teams ORDER BY id').all();
@@ -382,10 +455,11 @@ app.get('/api/bootstrap', (req, res) => {
     const out = {
       id: m.id, tournament_id: m.tournament_id,
       round: m.round, round_label: info.label,
-      min_stake: MIN_STAKE, max_stake: maxStakeOf(t, m.round),
+      min_stake: MIN_STAKE,
       day: m.day, game_no: m.game_no, scheduled_at: m.scheduled_at,
       deadline: deadlineOf(m).toISOString(), locked,
       status: m.status, winner_id: m.winner_id, score1: m.score1, score2: m.score2,
+      extra_innings: !!m.extra_innings,
       team1: teamMap.get(m.team1_id), team2: teamMap.get(m.team2_id),
       my_pick: mine?.predicted_winner_id ?? null,
       my_stake: mine?.stake ?? null,
@@ -400,9 +474,14 @@ app.get('/api/bootstrap', (req, res) => {
     if (locked) {
       out.dist = d;
       if (m.status === 'finished' && out.my_pick != null) {
-        const mult = m.winner_id === m.team1_id ? d.mult1 : d.mult2;
-        out.my_payout = out.my_pick === m.winner_id && mult != null
-          ? Math.round(out.my_stake * mult) : 0;
+        if (m.extra_innings) {
+          out.my_payout = out.my_pick === m.winner_id
+            ? Math.round(out.my_stake * EXTRA_REFUND_RATE) : 0;
+        } else {
+          const mult = m.winner_id === m.team1_id ? d.mult1 : d.mult2;
+          out.my_payout = out.my_pick === m.winner_id && mult != null
+            ? Math.round(out.my_stake * mult) : 0;
+        }
       }
     }
     return out;
@@ -437,6 +516,12 @@ app.get('/api/bootstrap', (req, res) => {
     min_stake: MIN_STAKE,
     relief_amount: RELIEF_AMOUNT,
     my_balance: stats?.balance ?? null,
+    me: session
+      ? (session.admin
+          ? { admin: true }
+          : { admin: false, user_id: session.user_id,
+              name: users.find((u) => u.id === session.user_id)?.name ?? '' })
+      : null,
     users, teams,
     tournaments: tournaments.map((t) => ({
       id: t.id, name: t.name, kind: t.kind,
@@ -449,27 +534,54 @@ app.get('/api/bootstrap', (req, res) => {
   });
 });
 
+// 新規参加（名前＋パスワード）。登録と同時にログイン扱い
 app.post('/api/users', (req, res) => {
   const name = String(req.body.name || '').trim();
+  const password = String(req.body.password || '');
   if (!name) return res.status(400).json({ error: 'ニックネームを入力してください' });
+  if (password.length < 4) return res.status(400).json({ error: 'パスワードは4文字以上にしてください' });
   try {
-    const info = db.prepare('INSERT INTO users (name) VALUES (?)').run(name);
-    res.json({ id: info.lastInsertRowid, name });
+    const info = db.prepare('INSERT INTO users (name, password_hash) VALUES (?, ?)')
+      .run(name, hashPassword(password));
+    res.json({ id: info.lastInsertRowid, name, token: issueToken({ user_id: Number(info.lastInsertRowid) }) });
   } catch {
     res.status(409).json({ error: 'そのニックネームは既に使われています' });
   }
 });
 
-function validateStake(stake, min, max, balancePlusRefund) {
+app.post('/api/login', (req, res) => {
+  const name = String(req.body.name || '').trim();
+  const password = String(req.body.password || '');
+  const user = db.prepare('SELECT * FROM users WHERE name = ?').get(name);
+  if (!user) return res.status(404).json({ error: 'ユーザーが見つかりません' });
+  if (user.password_hash == null) {
+    // パスワード導入前の既存ユーザー: 初回ログインで入力したパスワードを設定
+    if (password.length < 4) return res.status(400).json({ error: 'パスワードは4文字以上にしてください' });
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), user.id);
+  } else if (!verifyPassword(password, user.password_hash)) {
+    return res.status(401).json({ error: 'パスワードが違います' });
+  }
+  res.json({ id: user.id, name: user.name, token: issueToken({ user_id: user.id }) });
+});
+
+app.post('/api/admin/login', (req, res) => {
+  if (String(req.body.password || '') !== CONFIG.admin_password) {
+    return res.status(401).json({ error: '管理者パスワードが違います' });
+  }
+  res.json({ token: issueToken({ admin: true }) });
+});
+
+function validateStake(stake, balancePlusRefund) {
   if (!Number.isInteger(stake)) return 'ベット額は整数で指定してください';
-  if (stake < min) return `ベット額は最低 ${min}pt です`;
-  if (stake > max) return `この対象のベット上限は ${max}pt です`;
+  if (stake < MIN_STAKE) return `ベット額は最低 ${MIN_STAKE}pt です`;
   if (stake > balancePlusRefund) return `持ち点が足りません（利用可能 ${balancePlusRefund}pt）`;
   return null;
 }
 
 app.post('/api/predictions', (req, res) => {
-  const { user_id, match_id, team_id, stake } = req.body;
+  const user_id = actorUserId(req, res);
+  if (user_id == null) return;
+  const { match_id, team_id, stake } = req.body;
   const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(match_id);
   if (!match) return res.status(404).json({ error: '試合が見つかりません' });
   if (isLocked(match)) return res.status(400).json({ error: '締切を過ぎています' });
@@ -483,7 +595,7 @@ app.post('/api/predictions', (req, res) => {
     'SELECT stake FROM predictions WHERE user_id = ? AND match_id = ?'
   ).get(user_id, match_id);
   const available = balanceOf(user_id) + (existing?.stake ?? 0); // 張り替えは旧ステーク返却扱い
-  const err = validateStake(stake, MIN_STAKE, maxStakeOf(), available);
+  const err = validateStake(stake, available);
   if (err) return res.status(400).json({ error: err });
 
   db.prepare(`INSERT INTO predictions (user_id, match_id, predicted_winner_id, stake, created_at)
@@ -496,7 +608,9 @@ app.post('/api/predictions', (req, res) => {
 });
 
 app.post('/api/champion', (req, res) => {
-  const { user_id, tournament_id, team_id } = req.body;
+  const user_id = actorUserId(req, res);
+  if (user_id == null) return;
+  const { tournament_id, team_id } = req.body;
   const tournament = db.prepare('SELECT * FROM tournaments WHERE id = ?').get(tournament_id);
   if (!tournament) return res.status(404).json({ error: '大会が見つかりません' });
   if (championTeamId(tournament) != null) {
@@ -535,7 +649,9 @@ app.post('/api/champion', (req, res) => {
 
 // ベット取消（締切前のみ・全額返却）
 app.post('/api/predictions/cancel', (req, res) => {
-  const { user_id, match_id } = req.body;
+  const user_id = actorUserId(req, res);
+  if (user_id == null) return;
+  const { match_id } = req.body;
   const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(match_id);
   if (!match) return res.status(404).json({ error: '試合が見つかりません' });
   if (isLocked(match)) return res.status(400).json({ error: '締切後は取消できません' });
@@ -548,7 +664,8 @@ app.post('/api/predictions/cancel', (req, res) => {
 
 // 救済チップ: 持ち点がベット下限を下回ったときだけ +100pt（回数はランキングで公開）
 app.post('/api/relief', (req, res) => {
-  const { user_id } = req.body;
+  const user_id = actorUserId(req, res);
+  if (user_id == null) return;
   if (!db.prepare('SELECT id FROM users WHERE id = ?').get(user_id)) {
     return res.status(404).json({ error: 'ユーザーが見つかりません' });
   }
@@ -563,6 +680,7 @@ app.post('/api/relief', (req, res) => {
 
 // ---- 管理系 -------------------------------------------------------------------
 app.post('/api/admin/tournaments', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const { name, kind } = req.body;
   if (!TEMPLATES[kind]) return res.status(400).json({ error: '大会種別が不正です' });
   const trimmed = String(name || '').trim();
@@ -576,6 +694,7 @@ app.post('/api/admin/tournaments', (req, res) => {
 });
 
 app.post('/api/admin/teams', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const { tournament_id } = req.body;
   const name = String(req.body.name || '').trim();
   const prefecture = String(req.body.prefecture || '').trim();
@@ -590,6 +709,7 @@ app.post('/api/admin/teams', (req, res) => {
 });
 
 app.post('/api/admin/matches', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const { tournament_id, round, day, game_no, team1_id, team2_id, time } = req.body;
   const tournament = db.prepare('SELECT * FROM tournaments WHERE id = ?').get(tournament_id);
   if (!tournament) return res.status(404).json({ error: '大会が見つかりません' });
@@ -613,6 +733,7 @@ app.post('/api/admin/matches', (req, res) => {
 
 // AI予想の登録（Claude が試合情報を分析して投入する。表示専用でプールには参加しない）
 app.post('/api/admin/ai', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const { match_id, team_id, confidence, comment } = req.body;
   const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(match_id);
   if (!match) return res.status(404).json({ error: '試合が見つかりません' });
@@ -633,15 +754,27 @@ app.post('/api/admin/ai', (req, res) => {
 });
 
 app.post('/api/admin/result', (req, res) => {
-  const { match_id, winner_id, score1, score2 } = req.body;
+  if (!requireAdmin(req, res)) return;
+  const { match_id, winner_id, score1, score2, extra } = req.body;
   const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(match_id);
   if (!match) return res.status(404).json({ error: '試合が見つかりません' });
   if (winner_id !== match.team1_id && winner_id !== match.team2_id) {
     return res.status(400).json({ error: '勝者はこの試合の出場校から選んでください' });
   }
-  db.prepare(`UPDATE matches SET winner_id = ?, score1 = ?, score2 = ?, status = 'finished'
-    WHERE id = ?`)
-    .run(winner_id, score1 ?? null, score2 ?? null, match_id);
+  db.prepare(`UPDATE matches SET winner_id = ?, score1 = ?, score2 = ?, status = 'finished',
+    extra_innings = ? WHERE id = ?`)
+    .run(winner_id, score1 ?? null, score2 ?? null, extra ? 1 : 0, match_id);
+  broadcast();
+  res.json({ ok: true });
+});
+
+// 試合の不成立（不戦勝・中止など）: ベットは全額返還扱い
+app.post('/api/admin/void', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(req.body.match_id);
+  if (!match) return res.status(404).json({ error: '試合が見つかりません' });
+  db.prepare(`UPDATE matches SET status = 'void', winner_id = NULL, score1 = NULL,
+    score2 = NULL, extra_innings = 0 WHERE id = ?`).run(match.id);
   broadcast();
   res.json({ ok: true });
 });
