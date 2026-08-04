@@ -4,25 +4,35 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>甲子園予想ボード（読み取り専用）</title>
-<style>/* ブックメーカー風ダークUI（金銭要素なしのポイント制予想アプリ） */
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet">
+<style>/* パワプロ風UI（明るい空色・白パネル・太縁取り・黄色アクセント）— 金銭要素なしのポイント制予想アプリ */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
-  --bg: #0d1220;
-  --panel: #161f33;
-  --panel2: #1d2a45;
-  --line: #2a3a5c;
-  --text: #e8edf7;
-  --muted: #8fa0bf;
-  --accent: #2f7dff;
-  --odds: #ffb02e;
-  --win: #2ecc8f;
-  --lose: #ff5d6c;
+  --sky-top: #6ed0ff;
+  --sky-bottom: #2e8fe8;
+  --navy: #17427c;        /* 縁取り・本文 */
+  --navy-deep: #0d2a54;
+  --panel: #ffffff;
+  --panel-soft: #eaf6ff;
+  --muted: #5f7ba6;
+  --yellow: #ffd93b;      /* 選択・強調 */
+  --yellow-deep: #f5b300;
+  --orange: #ff8a1e;      /* オッズ */
+  --green: #2fae4e;       /* 勝ち・芝 */
+  --red: #e8503a;         /* 負け・警告 */
+  --shadow: rgba(13, 42, 84, 0.35);
 }
 body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", sans-serif;
+  background:
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.05) 0 14px, transparent 14px 28px),
+    linear-gradient(180deg, var(--sky-top), var(--sky-bottom));
+  background-attachment: fixed;
+  color: var(--navy);
+  font-family: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Meiryo", sans-serif;
   font-size: 14px;
+  font-weight: 500;
 }
 
 /* ヘッダ */
@@ -30,197 +40,291 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: 8px;
   padding: 12px 16px;
-  background: linear-gradient(180deg, #121a2e, #0d1220);
-  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #1e63b4, #17427c);
+  border-bottom: 4px solid var(--navy-deep);
 }
 .brand { display: flex; align-items: center; gap: 8px; }
-.brand-logo { font-size: 22px; }
-.brand-name { font-size: 18px; font-weight: 800; letter-spacing: 1px; }
+.brand-logo { font-size: 24px; filter: drop-shadow(0 2px 0 rgba(0,0,0,0.3)); }
+.brand-name {
+  font-size: 20px; font-weight: 800; letter-spacing: 2px; color: #fff;
+  text-shadow: 2px 2px 0 var(--navy-deep), -1px -1px 0 var(--navy-deep),
+    1px -1px 0 var(--navy-deep), -1px 1px 0 var(--navy-deep);
+}
 .brand-badge {
-  font-size: 11px; color: #0d1220; background: var(--win);
-  border-radius: 10px; padding: 2px 8px; font-weight: 700;
+  font-size: 11px; color: var(--navy); background: var(--yellow);
+  border: 2px solid var(--navy-deep); border-radius: 999px;
+  padding: 2px 10px; font-weight: 800; box-shadow: 0 2px 0 var(--navy-deep);
 }
 .userbox { display: flex; gap: 6px; align-items: center; }
-select, input[type="text"], input[type="number"], input[type="date"], input[type="time"] {
-  background: var(--panel2); color: var(--text);
-  border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
-  font-size: 13px;
+.userbox.hint { color: #dcefff; }
+.me-name { font-weight: 800; color: var(--yellow); text-shadow: 1px 1px 0 var(--navy-deep); }
+
+select, input[type="text"], input[type="password"], input[type="number"],
+input[type="date"], input[type="time"] {
+  background: #fff; color: var(--navy);
+  border: 2.5px solid var(--navy); border-radius: 10px; padding: 7px 10px;
+  font-size: 13px; font-family: inherit; font-weight: 700;
+  box-shadow: inset 0 2px 0 rgba(13, 42, 84, 0.08);
 }
 .btn {
-  background: var(--accent); color: #fff; border: none; border-radius: 8px;
-  padding: 8px 16px; font-weight: 700; cursor: pointer; font-size: 13px;
+  background: linear-gradient(180deg, #fff, #e9f3ff); color: var(--navy);
+  border: 2.5px solid var(--navy); border-radius: 12px;
+  padding: 8px 16px; font-weight: 800; cursor: pointer; font-size: 13px;
+  font-family: inherit;
+  box-shadow: 0 3px 0 var(--navy-deep);
+  transition: transform 0.05s, box-shadow 0.05s;
 }
-.btn:hover { filter: brightness(1.15); }
+.btn:hover { background: var(--yellow); }
+.btn:active { transform: translateY(3px); box-shadow: 0 0 0 var(--navy-deep); }
 .btn.small { padding: 7px 12px; }
+.btn.signup { background: linear-gradient(180deg, #baf5c9, #7de698); }
+.btn.logout { background: linear-gradient(180deg, #f2f5fa, #d9e2ef); }
+.btn.relief { background: linear-gradient(180deg, #ffc9b8, #ff9d84); }
+.btn.void { background: linear-gradient(180deg, #fff, #ffe3dd); color: var(--red); border-color: var(--red); box-shadow: 0 3px 0 #a33325; }
 
-/* タブ */
+/* タブ（ゲームメニュー風） */
 .tabs {
-  display: flex; gap: 4px; padding: 8px 16px 0;
-  border-bottom: 1px solid var(--line);
+  display: flex; gap: 6px; padding: 10px 16px 6px; flex-wrap: wrap; align-items: center;
 }
 .tab {
-  background: none; border: none; color: var(--muted);
-  padding: 10px 16px; font-size: 14px; font-weight: 700; cursor: pointer;
-  border-bottom: 3px solid transparent;
+  background: linear-gradient(180deg, #fff, #e9f3ff); border: 2.5px solid var(--navy);
+  color: var(--navy); border-radius: 999px;
+  padding: 8px 18px; font-size: 13px; font-weight: 800; cursor: pointer;
+  font-family: inherit; box-shadow: 0 3px 0 var(--navy-deep);
 }
-.tab.active { color: var(--text); border-bottom-color: var(--odds); }
-.tourn-select { margin-left: auto; align-self: center; max-width: 240px; }
+.tab:active { transform: translateY(3px); box-shadow: none; }
+.tab.active {
+  background: linear-gradient(180deg, #ffe884, var(--yellow));
+  box-shadow: 0 3px 0 var(--yellow-deep);
+}
+.tourn-select { margin-left: auto; max-width: 240px; }
+.tab-panel { display: none; padding: 16px; max-width: 880px; margin: 0 auto; }
+.tab-panel.active { display: block; }
+h2 {
+  font-size: 17px; margin-bottom: 10px; color: #fff; font-weight: 800;
+  text-shadow: 2px 2px 0 var(--navy-deep), -1px -1px 0 var(--navy-deep),
+    1px -1px 0 var(--navy-deep), -1px 1px 0 var(--navy-deep);
+  letter-spacing: 1px;
+}
+h3 { color: var(--navy); font-size: 14px; margin: 12px 0 8px; font-weight: 800; }
+.hint {
+  color: var(--navy); font-size: 12px; margin-bottom: 14px; line-height: 1.8;
+  background: rgba(255, 255, 255, 0.75); border: 2px solid rgba(23, 66, 124, 0.25);
+  border-radius: 10px; padding: 8px 12px;
+}
+.hint b { color: #c0392b; }
 
-/* ベットバー（持ち点・チップ選択・救済） */
+/* ベットバー */
 .betbar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  padding: 10px 16px; background: var(--panel);
-  border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; z-index: 10;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.85);
+  border-top: 2px solid rgba(23, 66, 124, 0.2);
+  border-bottom: 3px solid var(--navy);
+  position: sticky; top: 0; z-index: 10; backdrop-filter: blur(4px);
 }
 .balance-chip {
-  background: rgba(46, 204, 143, 0.12); color: var(--win);
-  border-radius: 8px; padding: 6px 12px; font-weight: 800; font-size: 13px;
+  background: var(--yellow); color: var(--navy);
+  border: 2.5px solid var(--navy); border-radius: 999px; padding: 6px 14px;
+  font-weight: 800; font-size: 13px; box-shadow: 0 2px 0 var(--navy-deep);
 }
-.betbar-label { color: var(--muted); font-size: 12px; }
-.chip-row { display: flex; gap: 6px; }
-.chip {
-  background: var(--panel2); color: var(--text);
-  border: 1.5px solid var(--line); border-radius: 50px;
-  padding: 6px 14px; font-weight: 800; font-size: 13px; cursor: pointer;
+.betbar-label { color: var(--navy); font-size: 12px; font-weight: 700; }
+
+/* 日付バナー（ペナント風） */
+.day-header {
+  display: inline-block;
+  font-size: 13px; font-weight: 800; color: var(--navy);
+  background: linear-gradient(180deg, #ffe884, var(--yellow));
+  border: 2.5px solid var(--navy);
+  margin: 18px 0 10px; letter-spacing: 1px;
+  padding: 4px 18px; border-radius: 4px 999px 999px 4px;
+  box-shadow: 0 3px 0 var(--navy-deep);
+  transform: skewX(-6deg);
 }
-.chip:hover { border-color: var(--accent); }
-.chip.selected { border-color: var(--odds); background: #2c3352; color: var(--odds); }
-.btn.relief { background: var(--lose); }
-.btn.signup { background: var(--win); color: #0d1220; }
-.btn.logout { background: var(--panel2); border: 1px solid var(--line); }
-.btn.void { background: var(--panel2); border: 1px solid var(--lose); color: var(--lose); }
-.me-name { font-weight: 800; color: var(--odds); }
+
+/* 試合カード */
+.match-card {
+  background: var(--panel); border: 3px solid var(--navy);
+  border-radius: 16px; padding: 12px 14px; margin-bottom: 12px;
+  box-shadow: 0 5px 0 var(--shadow);
+}
+.match-meta {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; color: var(--muted); margin-bottom: 10px; font-weight: 700;
+}
+.match-meta .round-chip {
+  background: var(--panel-soft); border: 2px solid rgba(23, 66, 124, 0.35);
+  border-radius: 999px; padding: 2px 10px; font-weight: 800; color: var(--navy);
+}
+.pick-row { display: flex; gap: 8px; align-items: stretch; }
+.pick-btn {
+  flex: 1; display: flex; justify-content: space-between; align-items: center;
+  gap: 8px; background: linear-gradient(180deg, #fff, #eef6ff);
+  border: 2.5px solid var(--navy);
+  border-radius: 12px; padding: 10px 12px; cursor: pointer; color: var(--navy);
+  font-size: 14px; text-align: left; font-family: inherit;
+  box-shadow: 0 3px 0 var(--shadow);
+  transition: transform 0.05s, box-shadow 0.05s;
+}
+.pick-btn:hover:not(:disabled) { background: linear-gradient(180deg, #fff8d6, #ffe884); }
+.pick-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: none; }
+.pick-btn:disabled { cursor: default; }
+.pick-btn .team-name { font-weight: 800; }
+.pick-btn .team-pref { font-size: 11px; color: var(--muted); margin-left: 4px; font-weight: 700; }
+.pick-btn .odds-chip {
+  background: #fff3e0; color: var(--orange); border: 2px solid var(--orange);
+  border-radius: 999px; padding: 3px 10px; font-weight: 800; font-size: 14px;
+  min-width: 56px; text-align: center;
+}
+.pick-btn.picked { border-color: var(--yellow-deep); background: linear-gradient(180deg, #fff3b0, var(--yellow)); }
+.pick-btn.winner { border-color: var(--green); background: linear-gradient(180deg, #e2ffe9, #b8f2c6); }
+.pick-btn.loser { opacity: 0.5; }
+.odds-move { font-size: 10px; margin-left: 4px; animation: odds-flash 1.2s ease-in-out 3; }
+.odds-move.up { color: var(--green); }
+.odds-move.down { color: var(--red); }
+@keyframes odds-flash { 50% { opacity: 0.2; } }
+.match-foot {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 8px; font-size: 12px; color: var(--muted); font-weight: 700;
+}
+.result-pill { font-weight: 800; }
+.result-pill.hit { color: var(--green); }
+.result-pill.miss { color: var(--red); }
+.odds-note { font-size: 11px; }
 .stake-tag {
-  background: rgba(255, 176, 46, 0.15); color: var(--odds);
-  border-radius: 6px; padding: 1px 6px; font-size: 11px; font-weight: 800;
+  background: var(--navy); color: var(--yellow);
+  border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 800;
   margin-left: 6px;
 }
-.profit-plus { color: var(--win) !important; }
-.profit-minus { color: var(--lose) !important; }
+
+/* 優勝予想 */
+.futures-status {
+  font-size: 13px; margin-bottom: 12px; color: var(--navy); font-weight: 800;
+  background: var(--yellow); display: inline-block; padding: 4px 14px;
+  border: 2.5px solid var(--navy); border-radius: 999px; box-shadow: 0 2px 0 var(--navy-deep);
+}
+.futures-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+.future-btn {
+  display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(180deg, #fff, #eef6ff); border: 2.5px solid var(--navy);
+  border-radius: 12px; padding: 10px 12px; cursor: pointer; color: var(--navy);
+  font-size: 13px; font-family: inherit; font-weight: 700;
+  box-shadow: 0 3px 0 var(--shadow);
+}
+.future-btn:hover:not(:disabled) { background: linear-gradient(180deg, #fff8d6, #ffe884); }
+.future-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: none; }
+.future-btn:disabled { cursor: default; opacity: 0.85; }
+.future-btn.picked { border-color: var(--yellow-deep); background: linear-gradient(180deg, #fff3b0, var(--yellow)); }
+.future-btn.champion { border-color: var(--green); background: linear-gradient(180deg, #e2ffe9, #b8f2c6); }
+.future-btn .odds-chip { color: var(--orange); font-weight: 800; }
+
+/* ランキング */
+.rank-table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--panel); border: 3px solid var(--navy); border-radius: 14px;
+  overflow: hidden; box-shadow: 0 5px 0 var(--shadow);
+}
+.rank-table th {
+  background: var(--navy); color: #fff; font-size: 11px; font-weight: 800;
+  padding: 10px 12px; text-align: left; letter-spacing: 1px;
+}
+.rank-table td {
+  padding: 10px 12px; text-align: left;
+  border-bottom: 2px solid var(--panel-soft); font-weight: 700;
+}
+.rank-table td.points { color: var(--orange); font-weight: 800; font-size: 15px; }
+.rank-table tr.top td { background: #fff8d6; }
+.rank-badge {
+  display: inline-block; width: 26px; height: 26px; line-height: 22px;
+  border-radius: 50%; text-align: center; font-weight: 800; font-size: 12px;
+  background: var(--panel-soft); border: 2px solid var(--navy); color: var(--navy);
+}
+.rank-badge.r1 { background: var(--yellow); }
+.rank-badge.r2 { background: #e3e8f0; }
+.rank-badge.r3 { background: #ffbf8e; }
+.profit-plus { color: var(--green) !important; }
+.profit-minus { color: var(--red) !important; }
+
+/* トーナメント表 */
+.bracket {
+  display: flex; gap: 14px; align-items: flex-start;
+  overflow-x: auto; padding-bottom: 12px;
+}
+.bracket-col { min-width: 195px; flex-shrink: 0; }
+.bracket-col-title {
+  font-size: 12px; font-weight: 800; color: var(--navy);
+  text-align: center; margin-bottom: 10px; letter-spacing: 1px;
+  background: linear-gradient(180deg, #ffe884, var(--yellow));
+  border: 2.5px solid var(--navy); border-radius: 999px; padding: 4px 0;
+  box-shadow: 0 2px 0 var(--navy-deep);
+}
+.bracket-match {
+  background: var(--panel); border: 2.5px solid var(--navy); border-radius: 12px;
+  padding: 6px 8px; margin-bottom: 10px; font-size: 12px;
+  box-shadow: 0 3px 0 var(--shadow); font-weight: 700;
+}
+.bracket-team {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 3px 6px; border-radius: 8px;
+}
+.bracket-team.win { background: #d9f7e2; color: #1c7c37; font-weight: 800; }
+.bracket-team.lose { opacity: 0.45; }
+.bracket-team .score { font-weight: 800; margin-left: 6px; }
+.bracket-day { font-size: 10px; color: var(--muted); text-align: right; margin-top: 2px; }
+.bracket-champion {
+  background: linear-gradient(180deg, #fff3b0, var(--yellow));
+  border: 3px solid var(--navy);
+  border-radius: 12px; padding: 12px; text-align: center;
+  font-weight: 800; color: var(--navy); font-size: 14px;
+  box-shadow: 0 4px 0 var(--yellow-deep);
+}
+.bracket-empty {
+  color: var(--muted); font-size: 11px; text-align: center; padding: 12px 0;
+  background: rgba(255, 255, 255, 0.6); border: 2px dashed rgba(23, 66, 124, 0.35);
+  border-radius: 12px;
+}
+
+/* 管理 */
+.admin-card {
+  background: var(--panel); border: 3px solid var(--navy); border-radius: 16px;
+  padding: 14px; margin-bottom: 14px; box-shadow: 0 5px 0 var(--shadow);
+}
+.admin-card h3 { font-size: 14px; margin: 0 0 10px; }
+.form-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.vs { color: var(--muted); font-weight: 800; }
+.radio-label { display: flex; align-items: center; gap: 4px; cursor: pointer; font-weight: 700; }
 
 /* 絞り込み・AI予想・取消 */
 .filter-row {
   display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px;
 }
 .ai-line {
-  margin-top: 8px; font-size: 12px; color: var(--muted);
-  background: rgba(47, 125, 255, 0.08); border-left: 3px solid var(--accent);
-  border-radius: 0 8px 8px 0; padding: 6px 10px; line-height: 1.6;
+  margin-top: 8px; font-size: 12px; color: var(--navy);
+  background: #eaf3ff; border: 2px solid rgba(23, 66, 124, 0.3);
+  border-left: 6px solid var(--navy);
+  border-radius: 10px; padding: 6px 10px; line-height: 1.7; font-weight: 700;
 }
-.ai-line b { color: var(--text); }
+.ai-line b { color: #c0392b; }
 .cancel-link {
-  background: none; border: 1px solid var(--line); color: var(--muted);
-  border-radius: 6px; padding: 3px 10px; font-size: 11px; cursor: pointer;
+  background: #fff; border: 2px solid var(--muted); color: var(--muted);
+  border-radius: 999px; padding: 3px 12px; font-size: 11px; cursor: pointer;
+  font-family: inherit; font-weight: 800;
 }
-.cancel-link:hover { border-color: var(--lose); color: var(--lose); }
-.tab-panel { display: none; padding: 16px; max-width: 860px; margin: 0 auto; }
-.tab-panel.active { display: block; }
-h2 { font-size: 16px; margin-bottom: 10px; }
-.hint { color: var(--muted); font-size: 12px; margin-bottom: 14px; line-height: 1.7; }
-
-/* 試合カード */
-.day-header {
-  font-size: 13px; font-weight: 800; color: var(--odds);
-  margin: 18px 0 8px; letter-spacing: 1px;
-}
-.match-card {
-  background: var(--panel); border: 1px solid var(--line);
-  border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;
-}
-.match-meta {
-  display: flex; justify-content: space-between; align-items: center;
-  font-size: 11px; color: var(--muted); margin-bottom: 10px;
-}
-.match-meta .round-chip {
-  background: var(--panel2); border-radius: 8px; padding: 2px 8px;
-  font-weight: 700; color: var(--text);
-}
-.pick-row { display: flex; gap: 8px; align-items: stretch; }
-.pick-btn {
-  flex: 1; display: flex; justify-content: space-between; align-items: center;
-  gap: 8px; background: var(--panel2); border: 1.5px solid var(--line);
-  border-radius: 10px; padding: 10px 12px; cursor: pointer; color: var(--text);
-  font-size: 14px; text-align: left;
-}
-.pick-btn:hover:not(:disabled) { border-color: var(--accent); }
-.pick-btn:disabled { cursor: default; opacity: 0.85; }
-.pick-btn .team-name { font-weight: 700; }
-.pick-btn .team-pref { font-size: 11px; color: var(--muted); margin-left: 4px; }
-.pick-btn .odds-chip {
-  background: rgba(255, 176, 46, 0.12); color: var(--odds);
-  border-radius: 8px; padding: 4px 10px; font-weight: 800; font-size: 15px;
-  min-width: 52px; text-align: center;
-}
-.pick-btn.picked { border-color: var(--odds); background: #263250; }
-.odds-move { font-size: 10px; margin-left: 4px; animation: odds-flash 1.2s ease-in-out 3; }
-.odds-move.up { color: var(--win); }
-.odds-move.down { color: var(--lose); }
-@keyframes odds-flash { 50% { opacity: 0.2; } }
-.pick-btn.winner { border-color: var(--win); }
-.pick-btn.loser { opacity: 0.55; }
-.match-foot {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-top: 8px; font-size: 12px; color: var(--muted);
-}
-.result-pill { font-weight: 800; }
-.result-pill.hit { color: var(--win); }
-.result-pill.miss { color: var(--lose); }
-.odds-note { font-size: 11px; }
-
-/* 長期（優勝） */
-.futures-status { font-size: 13px; margin-bottom: 12px; color: var(--odds); font-weight: 700; }
-.futures-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 8px;
-}
-.future-btn {
-  display: flex; justify-content: space-between; align-items: center;
-  background: var(--panel); border: 1.5px solid var(--line); border-radius: 10px;
-  padding: 10px 12px; cursor: pointer; color: var(--text); font-size: 13px;
-}
-.future-btn:hover:not(:disabled) { border-color: var(--accent); }
-.future-btn:disabled { cursor: default; opacity: 0.8; }
-.future-btn.picked { border-color: var(--odds); background: #263250; }
-.future-btn.champion { border-color: var(--win); }
-.future-btn .odds-chip { color: var(--odds); font-weight: 800; }
-
-/* ランキング */
-.rank-table { width: 100%; border-collapse: collapse; }
-.rank-table th, .rank-table td {
-  padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line);
-}
-.rank-table th { color: var(--muted); font-size: 11px; }
-.rank-table td.points { color: var(--odds); font-weight: 800; font-size: 15px; }
-.rank-table tr.top td { background: rgba(255, 176, 46, 0.06); }
-.rank-badge {
-  display: inline-block; width: 24px; height: 24px; line-height: 24px;
-  border-radius: 50%; text-align: center; font-weight: 800; font-size: 12px;
-  background: var(--panel2);
-}
-.rank-badge.r1 { background: var(--odds); color: #0d1220; }
-.rank-badge.r2 { background: #c0c9da; color: #0d1220; }
-.rank-badge.r3 { background: #c98d5a; color: #0d1220; }
-
-/* 管理 */
-.admin-card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-  padding: 14px; margin-bottom: 14px;
-}
-.admin-card h3 { font-size: 14px; margin-bottom: 10px; }
-.form-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-.vs { color: var(--muted); font-weight: 700; }
-.radio-label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.cancel-link:hover { border-color: var(--red); color: var(--red); }
 
 /* トースト */
 .toast {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-  background: var(--panel2); border: 1px solid var(--line); color: var(--text);
-  padding: 10px 18px; border-radius: 10px; font-size: 13px;
+  background: var(--navy); border: 3px solid #fff; color: #fff;
+  padding: 10px 20px; border-radius: 999px; font-size: 13px; font-weight: 800;
   opacity: 0; pointer-events: none; transition: opacity 0.25s;
+  box-shadow: 0 4px 0 var(--shadow);
 }
 .toast.show { opacity: 1; }
-.toast.error { border-color: var(--lose); color: var(--lose); }
+.toast.error { background: var(--red); }
 
 @media (max-width: 560px) {
   .pick-row { flex-direction: column; }
@@ -235,371 +339,383 @@ h2 { font-size: 16px; margin-bottom: 10px; }
     <span class="brand-name">甲子園予想ボード</span>
     <span class="brand-badge">ポイント制・賭博なし</span>
   </div>
-  <div class="userbox hint">生成: 2026/8/2 16:34:31（読み取り専用スナップショット）</div>
+  <div class="userbox hint">生成: 2026/8/5 7:37:02（読み取り専用スナップショット）</div>
 </header>
 <main style="max-width:860px;margin:0 auto;padding:16px;">
-<h2>受付中の試合</h2><div class="day-header">8/5（水）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第1試合 17:30</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">札幌日大</span><span class="team-pref">南北海道</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">仙台育英</span><span class="team-pref">宮城</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>仙台育英</b> 優勢 72% — 宮城決勝を完投勝ちで締めた投手層は全国屈指。開幕戦の重圧を差し引いても総合力で上</div><div class="match-foot"><span>締切 17:30</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="day-header">8/6（木）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第1試合 16:00</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">東筑</span><span class="team-pref">福岡</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">神村学園</span><span class="team-pref">鹿児島</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>神村学園</b> 優勢 68% — 攻守のバランスと全国上位の常連としての経験値。東筑は福岡の伝統公立校だが地力差あり</div><div class="match-foot"><span>締切 16:00</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第2試合 18:30</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">聖隷クリストファー</span><span class="team-pref">静岡</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">佐野日大</span><span class="team-pref">栃木</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>佐野日大</b> 優勢 55% — 関東の実力校がわずかに優勢。聖隷は初戦の入り方次第で十分ひっくり返せる接戦想定</div><div class="match-foot"><span>締切 18:30</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="day-header">8/7（金）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第1試合 08:00</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">東海大甲府</span><span class="team-pref">山梨</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">鶴岡東</span><span class="team-pref">山形</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>東海大甲府</b> 優勢 60% — 強打の系譜と甲子園経験で一歩リード。鶴岡東も打ち合いに持ち込めば互角</div><div class="match-foot"><span>締切 08:00</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第2試合 13:30</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">八幡商</span><span class="team-pref">滋賀</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">健大高崎</span><span class="team-pref">群馬</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>健大高崎</b> 優勢 75% — 機動力と近年の全国実績が抜けている。八幡商は近江勢らしい粘りの野球で対抗</div><div class="match-foot"><span>締切 13:30</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第3試合 16:00</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">立命館宇治</span><span class="team-pref">京都</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">有明</span><span class="team-pref">熊本</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>立命館宇治</b> 優勢 58% — 京都の激戦区を制した投手力を評価。有明は熊本大会で見せた勝負強さが武器</div><div class="match-foot"><span>締切 16:00</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第4試合 18:30</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">立正大淞南</span><span class="team-pref">島根</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">長崎日大</span><span class="team-pref">長崎</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>長崎日大</b> 優勢 55% — 甲子園経験の厚みでわずかに優勢。淞南は夏に強い伝統があり侮れない</div><div class="match-foot"><span>締切 18:30</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="day-header">8/8（土）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第1試合 08:00</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">遊学館</span><span class="team-pref">石川</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">青森山田</span><span class="team-pref">青森</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>青森山田</b> 優勢 62% — 冬場に鍛えた総合力と体格で優位。遊学館は石川決勝の雷雨中断からの逆転劇の勢いに乗る</div><div class="match-foot"><span>締切 08:00</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第2試合 13:30</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">白樺学園</span><span class="team-pref">北北海道</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">東日大昌平</span><span class="team-pref">福島</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>白樺学園</b> 優勢 55% — 北北海道大会の安定した戦いぶりを評価。昌平は初出場の勢いが不気味</div><div class="match-foot"><span>締切 13:30</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第3試合 16:00</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">日本文理</span><span class="team-pref">新潟</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">大分商</span><span class="team-pref">大分</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>日本文理</b> 優勢 58% — 新潟の名門らしい強打が持ち味。大分商は伝統の堅守でロースコアに持ち込みたい</div><div class="match-foot"><span>締切 16:00</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第4試合 18:30</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">英明</span><span class="team-pref">香川</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">関東第一</span><span class="team-pref">東東京</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>関東第一</b> 優勢 70% — 東東京決勝を10-4と投打に隙なし。英明は香川大会で見せた粘り強さで食らいつく</div><div class="match-foot"><span>締切 18:30</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="day-header">8/9（日）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第1試合 08:00</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">新田</span><span class="team-pref">愛媛</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">花巻東</span><span class="team-pref">岩手</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>花巻東</b> 優勢 65% — 岩手大会を危なげなく制した完成度。新田は愛媛の新興勢力で思い切りの良さが武器</div><div class="match-foot"><span>締切 08:00</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第2試合 13:30</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">岡山学芸館</span><span class="team-pref">岡山</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">鳥取城北</span><span class="team-pref">鳥取</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>岡山学芸館</b> 優勢 57% — 攻撃力で上回る。城北は山陰対決さながらの泥臭い野球で接戦に持ち込みたい</div><div class="match-foot"><span>締切 13:30</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第3試合 16:00</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">鳴門渦潮</span><span class="team-pref">徳島</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">八王子実践</span><span class="team-pref">西東京</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>八王子実践</b> 優勢 52% — 西東京決勝1-0の守り勝つ野球はトーナメント向き。ほぼ互角の読み</div><div class="match-foot"><span>締切 16:00</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第4試合 18:30</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">中京</span><span class="team-pref">岐阜</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">霞ケ浦</span><span class="team-pref">茨城</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>中京</b> 優勢 55% — 岐阜の伝統校が接戦をものにする巧さで僅差リード。霞ケ浦は投手力で対抗</div><div class="match-foot"><span>締切 18:30</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="day-header">8/10（月）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第1試合 08:00</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">明徳義塾</span><span class="team-pref">高知</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">日南学園</span><span class="team-pref">宮崎</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>明徳義塾</b> 優勢 60% — 全国での勝負強さは折り紙付き。日南学園は宮崎大会で磨いた守備力が生命線</div><div class="match-foot"><span>締切 08:00</span><span class="odds-note">オッズ変動中</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第2試合 13:30</span></div>
-      <div class="pick-row"><div class="pick-btn">
-        <span><span class="team-name">横浜</span><span class="team-pref">神奈川</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn">
-        <span><span class="team-name">沖縄尚学</span><span class="team-pref">沖縄</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>横浜</b> 優勢 55% — 優勝候補同士がまさかの初戦激突。神奈川決勝11-1の破壊力をわずかに上に取るが、連覇を狙う王者との事実上の決勝級カード</div><div class="match-foot"><span>締切 13:30</span><span class="odds-note">オッズ変動中</span></div>
-    </div>
-<h2>結果・締切済み</h2><div class="day-header">7/28（火）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">宮城大会｜決勝 第1試合 15:00</span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">仙台育英</span><span class="team-pref">宮城</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">東北</span><span class="team-pref">宮城</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>仙台育英</b> 優勢 70% — 秋春の県大会を制し準決勝も7-0の七回コールド、昨夏甲子園組を含む投手層が厚い。伝統の一戦、東北は力のある速球の継投と機動力で対抗</div><div class="match-foot"><span>試合終了 4 - 1（プール 0 : 0pt）</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">大阪大会｜決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">履正社</span><span class="team-pref">大阪</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">箕面学園</span><span class="team-pref">大阪</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>履正社</b> 優勢 75% — 準決勝で金光大阪を6-0完封と盤石。箕面学園は3試合連続の1点差を勝ち切る粘りが驚異だが総合力で分が悪い</div><div class="match-foot"><span>試合終了 16 - 2（プール 0 : 0pt）</span></div>
-    </div><div class="day-header">7/27（月）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">東東京大会｜決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">関東第一</span><span class="team-pref">東東京</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">二松学舎大付</span><span class="team-pref">東東京</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>関東第一</b> 優勢 65% — 準決勝で2年生高橋が七回参考ながら無安打無失点、7-0コールド圧勝。二松学舎大付は帝京を7-3と打ち崩した攻撃力で対抗</div><div class="match-foot"><span>試合終了 10 - 4（プール 0 : 0pt）</span></div>
-    </div><div class="day-header">7/26（日）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">石川大会｜決勝 第1試合 09:00</span></div>
-      <div class="pick-row"><div class="pick-btn loser">
-        <span><span class="team-name">金沢</span><span class="team-pref">石川</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn winner">
-        <span><span class="team-name">遊学館</span><span class="team-pref">石川</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>金沢</b> 優勢 55% — 準決勝で金沢市工を3-0完封と投手力が光る。遊学館は小松大谷との乱打戦12-8を制した打力でほぼ互角</div><div class="match-foot"><span>試合終了 3 - 4（プール 0 : 0pt）</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">大阪大会｜準決勝 第2試合 </span></div>
-      <div class="pick-row"><div class="pick-btn loser">
-        <span><span class="team-name">東海大大阪仰星</span><span class="team-pref">大阪</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn winner">
-        <span><span class="team-name">箕面学園</span><span class="team-pref">大阪</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>東海大大阪仰星</b> 優勢 58% — 生野に5-2と安定した試合運び。箕面学園は1点差の接戦を勝ち切る粘りが武器で侮れない</div><div class="match-foot"><span>試合終了 6 - 7（プール 0 : 0pt）</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">大阪大会｜準決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn loser">
-        <span><span class="team-name">金光大阪</span><span class="team-pref">大阪</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn winner">
-        <span><span class="team-name">履正社</span><span class="team-pref">大阪</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>履正社</b> 優勢 72% — 近大付を7-1と圧倒、投打の総合力は大阪随一。金光大阪は4-1と堅実だが地力差は否めず</div><div class="match-foot"><span>試合終了 0 - 6（プール 0 : 0pt）</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">神奈川大会｜決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">横浜</span><span class="team-pref">神奈川</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">桐光学園</span><span class="team-pref">神奈川</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>横浜</b> 優勢 80% — エース織田が慶應を七回途中まで無安打無失点、4-0完封リレー。桐光は打線好調だが横浜投手陣の攻略は至難</div><div class="match-foot"><span>試合終了 11 - 1（プール 0 : 0pt）</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">西東京大会｜決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">八王子実践</span><span class="team-pref">西東京</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">創価</span><span class="team-pref">西東京</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>創価</b> 優勢 62% — 優勝候補筆頭の日大三を7-4で破った打線の勢いは本物。八王子実践は4-2で守り勝つロースコア型</div><div class="match-foot"><span>試合終了 1 - 0（プール 0 : 0pt）</span></div>
-    </div><div class="day-header">7/25（土）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">東東京大会｜準決勝 第2試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">二松学舎大付</span><span class="team-pref">東東京</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">帝京</span><span class="team-pref">東東京</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>二松学舎大付</b> 優勢 55% — 接戦を勝ち切る安定感と中軸の長打力で僅かに優勢。帝京は5点差を跳ね返した勝負強さが魅力だが失点の多さが課題</div><div class="match-foot"><span>試合終了 7 - 3（プール 0 : 0pt）</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">東東京大会｜準決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn loser">
-        <span><span class="team-name">目黒日大</span><span class="team-pref">東東京</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn winner">
-        <span><span class="team-name">関東第一</span><span class="team-pref">東東京</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="ai-line">🤖 AI予想: <b>関東第一</b> 優勢 68% — 準々決勝を8-2で快勝、3年連続4強の地力が上。目黒日大は創部初4強の勢いも延長戦続きで消耗が不安</div><div class="match-foot"><span>試合終了 0 - 7（プール 0 : 0pt）</span></div>
-    </div><div class="day-header">7/24（金）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">神奈川大会｜準決勝 第2試合 11:30</span></div>
-      <div class="pick-row"><div class="pick-btn loser">
-        <span><span class="team-name">鎌倉学園</span><span class="team-pref">神奈川</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn winner">
-        <span><span class="team-name">桐光学園</span><span class="team-pref">神奈川</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 5 - 10（プール 0 : 0pt）</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">神奈川大会｜準決勝 第1試合 09:00</span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">横浜</span><span class="team-pref">神奈川</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">慶應義塾</span><span class="team-pref">神奈川</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 4 - 0（プール 0 : 0pt）</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">大阪大会｜準々決勝 第4試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">東海大大阪仰星</span><span class="team-pref">大阪</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">生野</span><span class="team-pref">大阪</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 5 - 2（プール 0 : 0pt）</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">大阪大会｜準々決勝 第3試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">箕面学園</span><span class="team-pref">大阪</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">大商大</span><span class="team-pref">大阪</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 3 - 2（プール 0 : 0pt）</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">大阪大会｜準々決勝 第2試合 </span></div>
-      <div class="pick-row"><div class="pick-btn loser">
-        <span><span class="team-name">関大北陽</span><span class="team-pref">大阪</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn winner">
-        <span><span class="team-name">金光大阪</span><span class="team-pref">大阪</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 1 - 4（プール 0 : 0pt）</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">大阪大会｜準々決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">履正社</span><span class="team-pref">大阪</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">近大付</span><span class="team-pref">大阪</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 7 - 1（プール 0 : 0pt）</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">西東京大会｜準決勝 第2試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">八王子実践</span><span class="team-pref">西東京</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">明大八王子</span><span class="team-pref">西東京</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 4 - 2（プール 0 : 0pt）</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">西東京大会｜準決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn loser">
-        <span><span class="team-name">日大三</span><span class="team-pref">西東京</span></span>
-        <span class="odds-chip">—</span>
-      </div><div class="pick-btn winner">
-        <span><span class="team-name">創価</span><span class="team-pref">西東京</span></span>
-        <span class="odds-chip">—</span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 4 - 7（プール 0 : 0pt）</span></div>
-    </div>
+<p class="hint">今大会のゲームは<b>優勝予想のみ</b>です。オッズは参加者の優勝予想の分布（人数比）で変動します。</p>
+<h2>トーナメント表（甲子園）</h2><div class="bracket"><div class="bracket-col"><div class="bracket-col-title">1回戦</div><div class="bracket-match"><div class="bracket-team "><span>札幌日大</span></div><div class="bracket-team "><span>仙台育英</span></div>
+          <div class="bracket-day">8/5（水）</div></div><div class="bracket-match"><div class="bracket-team "><span>東筑</span></div><div class="bracket-team "><span>神村学園</span></div>
+          <div class="bracket-day">8/6（木）</div></div><div class="bracket-match"><div class="bracket-team "><span>聖隷クリストファー</span></div><div class="bracket-team "><span>佐野日大</span></div>
+          <div class="bracket-day">8/6（木）</div></div><div class="bracket-match"><div class="bracket-team "><span>東海大甲府</span></div><div class="bracket-team "><span>鶴岡東</span></div>
+          <div class="bracket-day">8/7（金）</div></div><div class="bracket-match"><div class="bracket-team "><span>八幡商</span></div><div class="bracket-team "><span>健大高崎</span></div>
+          <div class="bracket-day">8/7（金）</div></div><div class="bracket-match"><div class="bracket-team "><span>立命館宇治</span></div><div class="bracket-team "><span>有明</span></div>
+          <div class="bracket-day">8/7（金）</div></div><div class="bracket-match"><div class="bracket-team "><span>立正大淞南</span></div><div class="bracket-team "><span>長崎日大</span></div>
+          <div class="bracket-day">8/7（金）</div></div><div class="bracket-match"><div class="bracket-team "><span>遊学館</span></div><div class="bracket-team "><span>青森山田</span></div>
+          <div class="bracket-day">8/8（土）</div></div><div class="bracket-match"><div class="bracket-team "><span>白樺学園</span></div><div class="bracket-team "><span>東日大昌平</span></div>
+          <div class="bracket-day">8/8（土）</div></div><div class="bracket-match"><div class="bracket-team "><span>日本文理</span></div><div class="bracket-team "><span>大分商</span></div>
+          <div class="bracket-day">8/8（土）</div></div><div class="bracket-match"><div class="bracket-team "><span>英明</span></div><div class="bracket-team "><span>関東第一</span></div>
+          <div class="bracket-day">8/8（土）</div></div><div class="bracket-match"><div class="bracket-team "><span>新田</span></div><div class="bracket-team "><span>花巻東</span></div>
+          <div class="bracket-day">8/9（日）</div></div><div class="bracket-match"><div class="bracket-team "><span>岡山学芸館</span></div><div class="bracket-team "><span>鳥取城北</span></div>
+          <div class="bracket-day">8/9（日）</div></div><div class="bracket-match"><div class="bracket-team "><span>鳴門渦潮</span></div><div class="bracket-team "><span>八王子実践</span></div>
+          <div class="bracket-day">8/9（日）</div></div><div class="bracket-match"><div class="bracket-team "><span>中京</span></div><div class="bracket-team "><span>霞ケ浦</span></div>
+          <div class="bracket-day">8/9（日）</div></div><div class="bracket-match"><div class="bracket-team "><span>明徳義塾</span></div><div class="bracket-team "><span>日南学園</span></div>
+          <div class="bracket-day">8/10（月）</div></div><div class="bracket-match"><div class="bracket-team "><span>横浜</span></div><div class="bracket-team "><span>沖縄尚学</span></div>
+          <div class="bracket-day">8/10（月）</div></div></div><div class="bracket-col"><div class="bracket-col-title">2回戦</div><div class="bracket-match"><div class="bracket-team "><span>高岡商</span></div><div class="bracket-team "><span>高川学園</span></div>
+          <div class="bracket-day">8/10（月）</div></div><div class="bracket-match"><div class="bracket-team "><span>天理</span></div><div class="bracket-team "><span>福山</span></div>
+          <div class="bracket-day">8/10（月）</div></div><div class="bracket-match"><div class="bracket-team "><span>横手</span></div><div class="bracket-team "><span>敦賀気比</span></div>
+          <div class="bracket-day">8/11（火）</div></div><div class="bracket-match"><div class="bracket-team "><span>智辯和歌山</span></div><div class="bracket-team "><span>社</span></div>
+          <div class="bracket-day">8/11（火）</div></div><div class="bracket-match"><div class="bracket-team "><span>履正社</span></div><div class="bracket-team "><span>享栄</span></div>
+          <div class="bracket-day">8/11（火）</div></div><div class="bracket-match"><div class="bracket-team "><span>松商学園</span></div><div class="bracket-team "><span>三重</span></div>
+          <div class="bracket-day">8/11（火）</div></div><div class="bracket-match"><div class="bracket-team "><span>拓大紅陵</span></div><div class="bracket-team "><span>佐賀商</span></div>
+          <div class="bracket-day">8/12（水）</div></div></div><div class="bracket-col"><div class="bracket-col-title">3回戦</div><div class="bracket-empty">組み合わせ未定</div></div><div class="bracket-col"><div class="bracket-col-title">準々決勝</div><div class="bracket-empty">組み合わせ未定</div></div><div class="bracket-col"><div class="bracket-col-title">準決勝</div><div class="bracket-empty">組み合わせ未定</div></div><div class="bracket-col"><div class="bracket-col-title">決勝</div><div class="bracket-empty">組み合わせ未定</div></div><div class="bracket-col"><div class="bracket-col-title">優勝</div><div class="bracket-empty">—</div></div></div>
 <h2>優勝オッズ</h2>
 <h3>全国大会（甲子園）（参加コスト 100pt）</h3><div class="futures-grid"><div class="future-btn"><span>白樺学園<span class="team-pref"> 北北海道</span></span><span class="odds-chip">1.00</span></div></div><h3>東東京大会（参加コスト 300pt）</h3><div class="futures-grid"><p class="hint">優勝ベットはまだありません</p></div><h3>西東京大会（参加コスト 300pt）</h3><div class="futures-grid"><p class="hint">優勝ベットはまだありません</p></div><h3>神奈川大会（参加コスト 300pt）</h3><div class="futures-grid"><p class="hint">優勝ベットはまだありません</p></div><h3>大阪大会（参加コスト 400pt）</h3><div class="futures-grid"><p class="hint">優勝ベットはまだありません</p></div><h3>石川大会（参加コスト 200pt）</h3><div class="futures-grid"><p class="hint">優勝ベットはまだありません</p></div><h3>宮城大会（参加コスト 200pt）</h3><div class="futures-grid"><p class="hint">優勝ベットはまだありません</p></div>
 <h2>ランキング（確定収支順）</h2>
 <table class="rank-table">
-<thead><tr><th>順位</th><th>ニックネーム</th><th>収支</th><th>持ち点</th><th>的中 / 予想</th></tr></thead>
+<thead><tr><th>順位</th><th>ニックネーム</th><th>収支</th><th>持ち点</th><th>優勝予想</th></tr></thead>
 <tbody><tr><td><span class="rank-badge r1">1</span></td><td>テスト</td>
           <td class="points ">0pt</td><td>900pt</td>
-          <td>0 / 0</td></tr></tbody>
+          <td>0 / 1</td></tr></tbody>
 </table>
-<p class="hint" style="margin-top:20px;">本ボードは金銭・賞品を一切扱わないポイント制予想ゲームの記録です。オッズ・AI予想は参加者内の娯楽のための参考表示であり、実在の学校・選手を評価するものではありません。試合データは公開報道（高野連公式・各報道機関）をもとにしています。</p>
+<h2>今後の試合</h2><div class="day-header">8/5（水）　大会第1日</div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第1試合 17:30</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">札幌日大</span><span class="team-pref">南北海道</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">仙台育英</span><span class="team-pref">宮城</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 17:30</span></div>
+    </div><div class="day-header">8/6（木）　大会第2日</div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第1試合 16:00</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">東筑</span><span class="team-pref">福岡</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">神村学園</span><span class="team-pref">鹿児島</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 16:00</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第2試合 18:30</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">聖隷クリストファー</span><span class="team-pref">静岡</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">佐野日大</span><span class="team-pref">栃木</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 18:30</span></div>
+    </div><div class="day-header">8/7（金）　大会第3日</div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第1試合 08:00</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">東海大甲府</span><span class="team-pref">山梨</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">鶴岡東</span><span class="team-pref">山形</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 08:00</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第2試合 13:30</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">八幡商</span><span class="team-pref">滋賀</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">健大高崎</span><span class="team-pref">群馬</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 13:30</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第3試合 16:00</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">立命館宇治</span><span class="team-pref">京都</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">有明</span><span class="team-pref">熊本</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 16:00</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第4試合 18:30</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">立正大淞南</span><span class="team-pref">島根</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">長崎日大</span><span class="team-pref">長崎</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 18:30</span></div>
+    </div><div class="day-header">8/8（土）　大会第4日</div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第1試合 08:00</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">遊学館</span><span class="team-pref">石川</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">青森山田</span><span class="team-pref">青森</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 08:00</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第2試合 13:30</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">白樺学園</span><span class="team-pref">北北海道</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">東日大昌平</span><span class="team-pref">福島</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 13:30</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第3試合 16:00</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">日本文理</span><span class="team-pref">新潟</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">大分商</span><span class="team-pref">大分</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 16:00</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第4試合 18:30</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">英明</span><span class="team-pref">香川</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">関東第一</span><span class="team-pref">東東京</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 18:30</span></div>
+    </div><div class="day-header">8/9（日）　大会第5日</div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第1試合 08:00</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">新田</span><span class="team-pref">愛媛</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">花巻東</span><span class="team-pref">岩手</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 08:00</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第2試合 13:30</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">岡山学芸館</span><span class="team-pref">岡山</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">鳥取城北</span><span class="team-pref">鳥取</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 13:30</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第3試合 16:00</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">鳴門渦潮</span><span class="team-pref">徳島</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">八王子実践</span><span class="team-pref">西東京</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 16:00</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第4試合 18:30</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">中京</span><span class="team-pref">岐阜</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">霞ケ浦</span><span class="team-pref">茨城</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 18:30</span></div>
+    </div><div class="day-header">8/10（月）　大会第6日</div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第1試合 08:00</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">明徳義塾</span><span class="team-pref">高知</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">日南学園</span><span class="team-pref">宮崎</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 08:00</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第2試合 13:30</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">横浜</span><span class="team-pref">神奈川</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">沖縄尚学</span><span class="team-pref">沖縄</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 13:30</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜2回戦 第3試合 16:00</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">高岡商</span><span class="team-pref">富山</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">高川学園</span><span class="team-pref">山口</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 16:00</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜2回戦 第4試合 18:30</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">天理</span><span class="team-pref">奈良</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">福山</span><span class="team-pref">広島</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 18:30</span></div>
+    </div><div class="day-header">8/11（火）　大会第7日</div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜2回戦 第1試合 08:00</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">横手</span><span class="team-pref">秋田</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">敦賀気比</span><span class="team-pref">福井</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 08:00</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜2回戦 第2試合 13:30</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">智辯和歌山</span><span class="team-pref">和歌山</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">社</span><span class="team-pref">兵庫</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 13:30</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜2回戦 第3試合 16:00</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">履正社</span><span class="team-pref">大阪</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">享栄</span><span class="team-pref">愛知</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 16:00</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜2回戦 第4試合 18:30</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">松商学園</span><span class="team-pref">長野</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">三重</span><span class="team-pref">三重</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 18:30</span></div>
+    </div><div class="day-header">8/12（水）　大会第8日</div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜2回戦 第1試合 08:00</span></div>
+      <div class="pick-row"><div class="pick-btn">
+        <span><span class="team-name">拓大紅陵</span><span class="team-pref">千葉</span></span>
+      </div><div class="pick-btn">
+        <span><span class="team-name">佐賀商</span><span class="team-pref">佐賀</span></span>
+      </div></div>
+      <div class="match-foot"><span>開始 08:00</span></div>
+    </div>
+<h2>結果</h2><div class="day-header">7/28（火）</div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">宮城大会｜決勝 第1試合 15:00</span></div>
+      <div class="pick-row"><div class="pick-btn winner">
+        <span><span class="team-name">仙台育英</span><span class="team-pref">宮城</span></span>
+      </div><div class="pick-btn loser">
+        <span><span class="team-name">東北</span><span class="team-pref">宮城</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 4 - 1</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">大阪大会｜決勝 第1試合 </span></div>
+      <div class="pick-row"><div class="pick-btn winner">
+        <span><span class="team-name">履正社</span><span class="team-pref">大阪</span></span>
+      </div><div class="pick-btn loser">
+        <span><span class="team-name">箕面学園</span><span class="team-pref">大阪</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 16 - 2</span></div>
+    </div><div class="day-header">7/27（月）</div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">東東京大会｜決勝 第1試合 </span></div>
+      <div class="pick-row"><div class="pick-btn winner">
+        <span><span class="team-name">関東第一</span><span class="team-pref">東東京</span></span>
+      </div><div class="pick-btn loser">
+        <span><span class="team-name">二松学舎大付</span><span class="team-pref">東東京</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 10 - 4</span></div>
+    </div><div class="day-header">7/26（日）</div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">石川大会｜決勝 第1試合 09:00</span></div>
+      <div class="pick-row"><div class="pick-btn loser">
+        <span><span class="team-name">金沢</span><span class="team-pref">石川</span></span>
+      </div><div class="pick-btn winner">
+        <span><span class="team-name">遊学館</span><span class="team-pref">石川</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 3 - 4</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">大阪大会｜準決勝 第2試合 </span></div>
+      <div class="pick-row"><div class="pick-btn loser">
+        <span><span class="team-name">東海大大阪仰星</span><span class="team-pref">大阪</span></span>
+      </div><div class="pick-btn winner">
+        <span><span class="team-name">箕面学園</span><span class="team-pref">大阪</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 6 - 7</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">大阪大会｜準決勝 第1試合 </span></div>
+      <div class="pick-row"><div class="pick-btn loser">
+        <span><span class="team-name">金光大阪</span><span class="team-pref">大阪</span></span>
+      </div><div class="pick-btn winner">
+        <span><span class="team-name">履正社</span><span class="team-pref">大阪</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 0 - 6</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">神奈川大会｜決勝 第1試合 </span></div>
+      <div class="pick-row"><div class="pick-btn winner">
+        <span><span class="team-name">横浜</span><span class="team-pref">神奈川</span></span>
+      </div><div class="pick-btn loser">
+        <span><span class="team-name">桐光学園</span><span class="team-pref">神奈川</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 11 - 1</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">西東京大会｜決勝 第1試合 </span></div>
+      <div class="pick-row"><div class="pick-btn winner">
+        <span><span class="team-name">八王子実践</span><span class="team-pref">西東京</span></span>
+      </div><div class="pick-btn loser">
+        <span><span class="team-name">創価</span><span class="team-pref">西東京</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 1 - 0</span></div>
+    </div><div class="day-header">7/25（土）</div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">東東京大会｜準決勝 第2試合 </span></div>
+      <div class="pick-row"><div class="pick-btn winner">
+        <span><span class="team-name">二松学舎大付</span><span class="team-pref">東東京</span></span>
+      </div><div class="pick-btn loser">
+        <span><span class="team-name">帝京</span><span class="team-pref">東東京</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 7 - 3</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">東東京大会｜準決勝 第1試合 </span></div>
+      <div class="pick-row"><div class="pick-btn loser">
+        <span><span class="team-name">目黒日大</span><span class="team-pref">東東京</span></span>
+      </div><div class="pick-btn winner">
+        <span><span class="team-name">関東第一</span><span class="team-pref">東東京</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 0 - 7</span></div>
+    </div><div class="day-header">7/24（金）</div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">神奈川大会｜準決勝 第2試合 11:30</span></div>
+      <div class="pick-row"><div class="pick-btn loser">
+        <span><span class="team-name">鎌倉学園</span><span class="team-pref">神奈川</span></span>
+      </div><div class="pick-btn winner">
+        <span><span class="team-name">桐光学園</span><span class="team-pref">神奈川</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 5 - 10</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">神奈川大会｜準決勝 第1試合 09:00</span></div>
+      <div class="pick-row"><div class="pick-btn winner">
+        <span><span class="team-name">横浜</span><span class="team-pref">神奈川</span></span>
+      </div><div class="pick-btn loser">
+        <span><span class="team-name">慶應義塾</span><span class="team-pref">神奈川</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 4 - 0</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">大阪大会｜準々決勝 第4試合 </span></div>
+      <div class="pick-row"><div class="pick-btn winner">
+        <span><span class="team-name">東海大大阪仰星</span><span class="team-pref">大阪</span></span>
+      </div><div class="pick-btn loser">
+        <span><span class="team-name">生野</span><span class="team-pref">大阪</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 5 - 2</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">大阪大会｜準々決勝 第3試合 </span></div>
+      <div class="pick-row"><div class="pick-btn winner">
+        <span><span class="team-name">箕面学園</span><span class="team-pref">大阪</span></span>
+      </div><div class="pick-btn loser">
+        <span><span class="team-name">大商大</span><span class="team-pref">大阪</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 3 - 2</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">大阪大会｜準々決勝 第2試合 </span></div>
+      <div class="pick-row"><div class="pick-btn loser">
+        <span><span class="team-name">関大北陽</span><span class="team-pref">大阪</span></span>
+      </div><div class="pick-btn winner">
+        <span><span class="team-name">金光大阪</span><span class="team-pref">大阪</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 1 - 4</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">大阪大会｜準々決勝 第1試合 </span></div>
+      <div class="pick-row"><div class="pick-btn winner">
+        <span><span class="team-name">履正社</span><span class="team-pref">大阪</span></span>
+      </div><div class="pick-btn loser">
+        <span><span class="team-name">近大付</span><span class="team-pref">大阪</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 7 - 1</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">西東京大会｜準決勝 第2試合 </span></div>
+      <div class="pick-row"><div class="pick-btn winner">
+        <span><span class="team-name">八王子実践</span><span class="team-pref">西東京</span></span>
+      </div><div class="pick-btn loser">
+        <span><span class="team-name">明大八王子</span><span class="team-pref">西東京</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 4 - 2</span></div>
+    </div><div class="match-card">
+      <div class="match-meta"><span class="round-chip">西東京大会｜準決勝 第1試合 </span></div>
+      <div class="pick-row"><div class="pick-btn loser">
+        <span><span class="team-name">日大三</span><span class="team-pref">西東京</span></span>
+      </div><div class="pick-btn winner">
+        <span><span class="team-name">創価</span><span class="team-pref">西東京</span></span>
+      </div></div>
+      <div class="match-foot"><span>試合終了 4 - 7</span></div>
+    </div>
+<p class="hint" style="margin-top:20px;">本ボードは金銭・賞品を一切扱わないポイント制予想ゲームの記録です。オッズは参加者内の娯楽のための参考表示であり、実在の学校・選手を評価するものではありません。試合データは公開報道（高野連公式・各報道機関）をもとにしています。</p>
 </main>
 </body>
 </html>

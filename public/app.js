@@ -51,7 +51,12 @@ const adminApi = (path, body) => {
 };
 
 async function load() {
-  state.data = await api('/api/bootstrap');
+  // 管理者トークンは別ヘッダで併送（AI勝率予想は管理者にだけ返る）
+  const headers = {};
+  if (state.token) headers['x-token'] = state.token;
+  if (state.adminToken) headers['x-admin-token'] = state.adminToken;
+  const res = await fetch('/api/bootstrap', { headers });
+  state.data = await res.json();
   // トークン失効（サーバ再起動など）を検知したらログアウト状態に戻す
   if (state.token && !state.data.me) {
     state.token = null;
@@ -69,9 +74,62 @@ function renderAll() {
   renderBetBar();
   renderFilters();
   renderMatches();
+  renderBracket();
   renderFutures();
   renderRanking();
   renderAdmin();
+}
+
+const currentTournament = () =>
+  state.data.tournaments.find((t) => t.id === state.tournamentId);
+
+// ---- トーナメント表（ラウンド列形式、左→右で勝ち上がり） ------------------------
+function renderBracket() {
+  const t = currentTournament();
+  const wrap = $('#bracket-view');
+  if (!t) { wrap.innerHTML = ''; return; }
+  $('#bracket-title').textContent = `トーナメント表 — ${t.name}`;
+  const matches = state.data.matches.filter((m) => m.tournament_id === t.id);
+  const champion = state.data.champions.find((c) => c.tournament_id === t.id);
+
+  const cols = t.rounds.map((r, i) => {
+    const round = i + 1;
+    const ms = matches.filter((m) => m.round === round);
+    let body;
+    if (!ms.length) {
+      body = '<div class="bracket-empty">組み合わせ未定</div>';
+    } else {
+      body = ms.map((m) => {
+        const team = (x, other) => {
+          const won = m.status === 'finished' && m.winner_id === x.id;
+          const lost = m.status === 'finished' && m.winner_id === other.id;
+          const score = m.status === 'finished' && m.score1 != null
+            ? `<span class="score">${x.id === m.team1.id ? m.score1 : m.score2}</span>` : '';
+          return `<div class="bracket-team ${won ? 'win' : lost ? 'lose' : ''}">
+            <span>${esc(x.name)}</span>${score}
+          </div>`;
+        };
+        const dayNote = m.status === 'void' ? '不成立'
+          : `${fmtDay(m.day)}${m.extra_innings ? '・延長' : ''}`;
+        return `<div class="bracket-match">
+          ${team(m.team1, m.team2)}
+          ${team(m.team2, m.team1)}
+          <div class="bracket-day">${dayNote}</div>
+        </div>`;
+      }).join('');
+    }
+    return `<div class="bracket-col"><div class="bracket-col-title">${esc(r.label)}</div>${body}</div>`;
+  });
+
+  // 優勝列
+  let champBody = '<div class="bracket-empty">—</div>';
+  if (champion?.champion_team_id != null) {
+    const ct = state.data.teams.find((x) => x.id === champion.champion_team_id);
+    champBody = `<div class="bracket-champion">🏆 ${esc(ct?.name ?? '?')}</div>`;
+  }
+  cols.push(`<div class="bracket-col"><div class="bracket-col-title">優勝</div>${champBody}</div>`);
+
+  wrap.innerHTML = cols.join('');
 }
 
 // select の中身を差し替えつつ、可能なら選択値を維持する
@@ -155,6 +213,15 @@ const fmtDay = (day) => {
   const w = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
   return `${d.getMonth() + 1}/${d.getDate()}（${w}）`;
 };
+// 甲子園の「大会第N日」表記（開幕 8/5 起点。順延時はズレるが表示のみ）
+const KOSHIEN_OPENING = '2026-08-05';
+function koshienDayTag(m) {
+  const t = state.data.tournaments.find((x) => x.id === m.tournament_id);
+  if (t?.kind !== 'koshien') return '';
+  const n = Math.round(
+    (new Date(`${m.day}T00:00`) - new Date(`${KOSHIEN_OPENING}T00:00`)) / 86400000) + 1;
+  return n >= 1 ? `　大会第${n}日` : '';
+}
 const fmtTime = (iso) => iso ? iso.slice(11, 16) : '';
 const oddsText = (m) => (m == null ? '—' : m.toFixed(2));
 
@@ -181,7 +248,7 @@ function renderMatches() {
   for (const m of matches) {
     if (m.day !== currentDay) {
       currentDay = m.day;
-      html += `<div class="day-header">${fmtDay(m.day)}</div>`;
+      html += `<div class="day-header">${fmtDay(m.day)}${koshienDayTag(m)}</div>`;
     }
     html += matchCard(m);
   }
@@ -196,6 +263,7 @@ function renderMatches() {
 }
 
 function matchCard(m) {
+  const betting = state.data.match_betting;
   const finished = m.status === 'finished';
   const voided = m.status === 'void';
   const tourn = state.data.tournaments.find((t) => t.id === m.tournament_id);
@@ -204,12 +272,13 @@ function matchCard(m) {
     const cls = ['pick-btn'];
     if (picked) cls.push('picked');
     if (finished) cls.push(m.winner_id === team.id ? 'winner' : 'loser');
-    const arrow = m.locked ? '' : oddsArrow(`${m.id}:${team.id}`, mult);
+    const arrow = (!betting || m.locked) ? '' : oddsArrow(`${m.id}:${team.id}`, mult);
     const stakeTag = picked && m.my_stake != null
       ? `<span class="stake-tag">${m.my_stake.toLocaleString()}pt</span>` : '';
-    return `<button class="${cls.join(' ')}" data-match="${m.id}" data-team="${team.id}" ${m.locked || voided ? 'disabled' : ''}>
+    const oddsChip = betting ? `<span class="odds-chip">${oddsText(mult)}${arrow}</span>` : '';
+    return `<button class="${cls.join(' ')}" data-match="${m.id}" data-team="${team.id}" ${!betting || m.locked || voided ? 'disabled' : ''}>
       <span><span class="team-name">${esc(team.name)}</span><span class="team-pref">${esc(team.prefecture)}</span>${stakeTag}</span>
-      <span class="odds-chip">${oddsText(mult)}${arrow}</span>
+      ${oddsChip}
     </button>`;
   };
 
@@ -222,12 +291,12 @@ function matchCard(m) {
 
   let foot;
   if (voided) {
-    foot = `<div class="match-foot"><span>試合不成立 — ベットは全額返還されました</span></div>`;
+    foot = `<div class="match-foot"><span>試合不成立${betting ? ' — ベットは全額返還されました' : ''}</span></div>`;
   } else if (finished) {
     const score = (m.score1 != null && m.score2 != null) ? `${m.score1} - ${m.score2}` : '';
     const extraTag = m.extra_innings ? '（延長）' : '';
     let mine = '';
-    if (m.my_pick != null) {
+    if (betting && m.my_pick != null) {
       if (m.extra_innings) {
         mine = m.my_payout > 0
           ? `<span class="result-pill hit">△ 延長勝ち 半金返還 +${m.my_payout}pt</span>`
@@ -238,7 +307,10 @@ function matchCard(m) {
           : `<span class="result-pill miss">× はずれ −${m.my_stake}pt</span>`;
       }
     }
-    foot = `<div class="match-foot"><span>試合終了${extraTag} ${score}（プール ${m.dist.p1} : ${m.dist.p2}pt）</span>${mine}</div>`;
+    const pool = betting ? `（プール ${m.dist.p1} : ${m.dist.p2}pt）` : '';
+    foot = `<div class="match-foot"><span>試合終了${extraTag} ${score}${pool}</span>${mine}</div>`;
+  } else if (!betting) {
+    foot = `<div class="match-foot"><span>開始 ${fmtTime(m.scheduled_at) || '未定'}</span></div>`;
   } else if (m.locked) {
     foot = `<div class="match-foot"><span>締切済み・オッズ確定（プール ${m.dist.p1} : ${m.dist.p2}pt）</span></div>`;
   } else {
@@ -262,6 +334,9 @@ function matchCard(m) {
 
 // タップでベット: 同じ学校を連打すると選択中の増分ずつ積み増し、別の学校なら増分額で張り直し
 async function pick(matchId, teamId) {
+  if (!state.data.match_betting) {
+    return toast('今大会は優勝予想のみです（優勝予想タブからどうぞ）', true);
+  }
   if (!state.data.me || state.data.me.admin) {
     return toast('右上からニックネームとパスワードでログインしてください', true);
   }
@@ -347,7 +422,7 @@ function renderRanking() {
       <td>${esc(r.name)}</td>
       <td class="points ${profitCls}">${profitText}pt</td>
       <td>${r.balance.toLocaleString()}pt</td>
-      <td>${r.hits} / ${r.predicted}${r.champion_hits > 0 ? ' 🏆' : ''}</td>
+      <td>${r.champion_hits} / ${r.champion_total}${r.champion_hits > 0 ? ' 🏆' : ''}</td>
       <td>${r.relief_count > 0 ? r.relief_count : '—'}</td>
     </tr>`;
   }).join('');
@@ -434,8 +509,8 @@ $('#admin-login-btn').addEventListener('click', async () => {
     state.adminToken = r.token;
     localStorage.setItem('koshien_admin', r.token);
     $('#admin-pass').value = '';
-    renderAdmin();
-    toast('管理者としてログインしました');
+    await load(); // AI勝率予想の表示を反映
+    toast('管理者としてログインしました（AI勝率予想が表示されます）');
   } catch (e) { toast(e.message, true); }
 });
 

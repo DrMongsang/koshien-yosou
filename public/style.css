@@ -1,22 +1,29 @@
-/* ブックメーカー風ダークUI（金銭要素なしのポイント制予想アプリ） */
+/* パワプロ風UI（明るい空色・白パネル・太縁取り・黄色アクセント）— 金銭要素なしのポイント制予想アプリ */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
-  --bg: #0d1220;
-  --panel: #161f33;
-  --panel2: #1d2a45;
-  --line: #2a3a5c;
-  --text: #e8edf7;
-  --muted: #8fa0bf;
-  --accent: #2f7dff;
-  --odds: #ffb02e;
-  --win: #2ecc8f;
-  --lose: #ff5d6c;
+  --sky-top: #6ed0ff;
+  --sky-bottom: #2e8fe8;
+  --navy: #17427c;        /* 縁取り・本文 */
+  --navy-deep: #0d2a54;
+  --panel: #ffffff;
+  --panel-soft: #eaf6ff;
+  --muted: #5f7ba6;
+  --yellow: #ffd93b;      /* 選択・強調 */
+  --yellow-deep: #f5b300;
+  --orange: #ff8a1e;      /* オッズ */
+  --green: #2fae4e;       /* 勝ち・芝 */
+  --red: #e8503a;         /* 負け・警告 */
+  --shadow: rgba(13, 42, 84, 0.35);
 }
 body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", sans-serif;
+  background:
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.05) 0 14px, transparent 14px 28px),
+    linear-gradient(180deg, var(--sky-top), var(--sky-bottom));
+  background-attachment: fixed;
+  color: var(--navy);
+  font-family: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Meiryo", sans-serif;
   font-size: 14px;
+  font-weight: 500;
 }
 
 /* ヘッダ */
@@ -24,197 +31,291 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: 8px;
   padding: 12px 16px;
-  background: linear-gradient(180deg, #121a2e, #0d1220);
-  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #1e63b4, #17427c);
+  border-bottom: 4px solid var(--navy-deep);
 }
 .brand { display: flex; align-items: center; gap: 8px; }
-.brand-logo { font-size: 22px; }
-.brand-name { font-size: 18px; font-weight: 800; letter-spacing: 1px; }
+.brand-logo { font-size: 24px; filter: drop-shadow(0 2px 0 rgba(0,0,0,0.3)); }
+.brand-name {
+  font-size: 20px; font-weight: 800; letter-spacing: 2px; color: #fff;
+  text-shadow: 2px 2px 0 var(--navy-deep), -1px -1px 0 var(--navy-deep),
+    1px -1px 0 var(--navy-deep), -1px 1px 0 var(--navy-deep);
+}
 .brand-badge {
-  font-size: 11px; color: #0d1220; background: var(--win);
-  border-radius: 10px; padding: 2px 8px; font-weight: 700;
+  font-size: 11px; color: var(--navy); background: var(--yellow);
+  border: 2px solid var(--navy-deep); border-radius: 999px;
+  padding: 2px 10px; font-weight: 800; box-shadow: 0 2px 0 var(--navy-deep);
 }
 .userbox { display: flex; gap: 6px; align-items: center; }
-select, input[type="text"], input[type="number"], input[type="date"], input[type="time"] {
-  background: var(--panel2); color: var(--text);
-  border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
-  font-size: 13px;
+.userbox.hint { color: #dcefff; }
+.me-name { font-weight: 800; color: var(--yellow); text-shadow: 1px 1px 0 var(--navy-deep); }
+
+select, input[type="text"], input[type="password"], input[type="number"],
+input[type="date"], input[type="time"] {
+  background: #fff; color: var(--navy);
+  border: 2.5px solid var(--navy); border-radius: 10px; padding: 7px 10px;
+  font-size: 13px; font-family: inherit; font-weight: 700;
+  box-shadow: inset 0 2px 0 rgba(13, 42, 84, 0.08);
 }
 .btn {
-  background: var(--accent); color: #fff; border: none; border-radius: 8px;
-  padding: 8px 16px; font-weight: 700; cursor: pointer; font-size: 13px;
+  background: linear-gradient(180deg, #fff, #e9f3ff); color: var(--navy);
+  border: 2.5px solid var(--navy); border-radius: 12px;
+  padding: 8px 16px; font-weight: 800; cursor: pointer; font-size: 13px;
+  font-family: inherit;
+  box-shadow: 0 3px 0 var(--navy-deep);
+  transition: transform 0.05s, box-shadow 0.05s;
 }
-.btn:hover { filter: brightness(1.15); }
+.btn:hover { background: var(--yellow); }
+.btn:active { transform: translateY(3px); box-shadow: 0 0 0 var(--navy-deep); }
 .btn.small { padding: 7px 12px; }
+.btn.signup { background: linear-gradient(180deg, #baf5c9, #7de698); }
+.btn.logout { background: linear-gradient(180deg, #f2f5fa, #d9e2ef); }
+.btn.relief { background: linear-gradient(180deg, #ffc9b8, #ff9d84); }
+.btn.void { background: linear-gradient(180deg, #fff, #ffe3dd); color: var(--red); border-color: var(--red); box-shadow: 0 3px 0 #a33325; }
 
-/* タブ */
+/* タブ（ゲームメニュー風） */
 .tabs {
-  display: flex; gap: 4px; padding: 8px 16px 0;
-  border-bottom: 1px solid var(--line);
+  display: flex; gap: 6px; padding: 10px 16px 6px; flex-wrap: wrap; align-items: center;
 }
 .tab {
-  background: none; border: none; color: var(--muted);
-  padding: 10px 16px; font-size: 14px; font-weight: 700; cursor: pointer;
-  border-bottom: 3px solid transparent;
+  background: linear-gradient(180deg, #fff, #e9f3ff); border: 2.5px solid var(--navy);
+  color: var(--navy); border-radius: 999px;
+  padding: 8px 18px; font-size: 13px; font-weight: 800; cursor: pointer;
+  font-family: inherit; box-shadow: 0 3px 0 var(--navy-deep);
 }
-.tab.active { color: var(--text); border-bottom-color: var(--odds); }
-.tourn-select { margin-left: auto; align-self: center; max-width: 240px; }
+.tab:active { transform: translateY(3px); box-shadow: none; }
+.tab.active {
+  background: linear-gradient(180deg, #ffe884, var(--yellow));
+  box-shadow: 0 3px 0 var(--yellow-deep);
+}
+.tourn-select { margin-left: auto; max-width: 240px; }
+.tab-panel { display: none; padding: 16px; max-width: 880px; margin: 0 auto; }
+.tab-panel.active { display: block; }
+h2 {
+  font-size: 17px; margin-bottom: 10px; color: #fff; font-weight: 800;
+  text-shadow: 2px 2px 0 var(--navy-deep), -1px -1px 0 var(--navy-deep),
+    1px -1px 0 var(--navy-deep), -1px 1px 0 var(--navy-deep);
+  letter-spacing: 1px;
+}
+h3 { color: var(--navy); font-size: 14px; margin: 12px 0 8px; font-weight: 800; }
+.hint {
+  color: var(--navy); font-size: 12px; margin-bottom: 14px; line-height: 1.8;
+  background: rgba(255, 255, 255, 0.75); border: 2px solid rgba(23, 66, 124, 0.25);
+  border-radius: 10px; padding: 8px 12px;
+}
+.hint b { color: #c0392b; }
 
-/* ベットバー（持ち点・チップ選択・救済） */
+/* ベットバー */
 .betbar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  padding: 10px 16px; background: var(--panel);
-  border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; z-index: 10;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.85);
+  border-top: 2px solid rgba(23, 66, 124, 0.2);
+  border-bottom: 3px solid var(--navy);
+  position: sticky; top: 0; z-index: 10; backdrop-filter: blur(4px);
 }
 .balance-chip {
-  background: rgba(46, 204, 143, 0.12); color: var(--win);
-  border-radius: 8px; padding: 6px 12px; font-weight: 800; font-size: 13px;
+  background: var(--yellow); color: var(--navy);
+  border: 2.5px solid var(--navy); border-radius: 999px; padding: 6px 14px;
+  font-weight: 800; font-size: 13px; box-shadow: 0 2px 0 var(--navy-deep);
 }
-.betbar-label { color: var(--muted); font-size: 12px; }
-.chip-row { display: flex; gap: 6px; }
-.chip {
-  background: var(--panel2); color: var(--text);
-  border: 1.5px solid var(--line); border-radius: 50px;
-  padding: 6px 14px; font-weight: 800; font-size: 13px; cursor: pointer;
+.betbar-label { color: var(--navy); font-size: 12px; font-weight: 700; }
+
+/* 日付バナー（ペナント風） */
+.day-header {
+  display: inline-block;
+  font-size: 13px; font-weight: 800; color: var(--navy);
+  background: linear-gradient(180deg, #ffe884, var(--yellow));
+  border: 2.5px solid var(--navy);
+  margin: 18px 0 10px; letter-spacing: 1px;
+  padding: 4px 18px; border-radius: 4px 999px 999px 4px;
+  box-shadow: 0 3px 0 var(--navy-deep);
+  transform: skewX(-6deg);
 }
-.chip:hover { border-color: var(--accent); }
-.chip.selected { border-color: var(--odds); background: #2c3352; color: var(--odds); }
-.btn.relief { background: var(--lose); }
-.btn.signup { background: var(--win); color: #0d1220; }
-.btn.logout { background: var(--panel2); border: 1px solid var(--line); }
-.btn.void { background: var(--panel2); border: 1px solid var(--lose); color: var(--lose); }
-.me-name { font-weight: 800; color: var(--odds); }
+
+/* 試合カード */
+.match-card {
+  background: var(--panel); border: 3px solid var(--navy);
+  border-radius: 16px; padding: 12px 14px; margin-bottom: 12px;
+  box-shadow: 0 5px 0 var(--shadow);
+}
+.match-meta {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; color: var(--muted); margin-bottom: 10px; font-weight: 700;
+}
+.match-meta .round-chip {
+  background: var(--panel-soft); border: 2px solid rgba(23, 66, 124, 0.35);
+  border-radius: 999px; padding: 2px 10px; font-weight: 800; color: var(--navy);
+}
+.pick-row { display: flex; gap: 8px; align-items: stretch; }
+.pick-btn {
+  flex: 1; display: flex; justify-content: space-between; align-items: center;
+  gap: 8px; background: linear-gradient(180deg, #fff, #eef6ff);
+  border: 2.5px solid var(--navy);
+  border-radius: 12px; padding: 10px 12px; cursor: pointer; color: var(--navy);
+  font-size: 14px; text-align: left; font-family: inherit;
+  box-shadow: 0 3px 0 var(--shadow);
+  transition: transform 0.05s, box-shadow 0.05s;
+}
+.pick-btn:hover:not(:disabled) { background: linear-gradient(180deg, #fff8d6, #ffe884); }
+.pick-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: none; }
+.pick-btn:disabled { cursor: default; }
+.pick-btn .team-name { font-weight: 800; }
+.pick-btn .team-pref { font-size: 11px; color: var(--muted); margin-left: 4px; font-weight: 700; }
+.pick-btn .odds-chip {
+  background: #fff3e0; color: var(--orange); border: 2px solid var(--orange);
+  border-radius: 999px; padding: 3px 10px; font-weight: 800; font-size: 14px;
+  min-width: 56px; text-align: center;
+}
+.pick-btn.picked { border-color: var(--yellow-deep); background: linear-gradient(180deg, #fff3b0, var(--yellow)); }
+.pick-btn.winner { border-color: var(--green); background: linear-gradient(180deg, #e2ffe9, #b8f2c6); }
+.pick-btn.loser { opacity: 0.5; }
+.odds-move { font-size: 10px; margin-left: 4px; animation: odds-flash 1.2s ease-in-out 3; }
+.odds-move.up { color: var(--green); }
+.odds-move.down { color: var(--red); }
+@keyframes odds-flash { 50% { opacity: 0.2; } }
+.match-foot {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 8px; font-size: 12px; color: var(--muted); font-weight: 700;
+}
+.result-pill { font-weight: 800; }
+.result-pill.hit { color: var(--green); }
+.result-pill.miss { color: var(--red); }
+.odds-note { font-size: 11px; }
 .stake-tag {
-  background: rgba(255, 176, 46, 0.15); color: var(--odds);
-  border-radius: 6px; padding: 1px 6px; font-size: 11px; font-weight: 800;
+  background: var(--navy); color: var(--yellow);
+  border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 800;
   margin-left: 6px;
 }
-.profit-plus { color: var(--win) !important; }
-.profit-minus { color: var(--lose) !important; }
+
+/* 優勝予想 */
+.futures-status {
+  font-size: 13px; margin-bottom: 12px; color: var(--navy); font-weight: 800;
+  background: var(--yellow); display: inline-block; padding: 4px 14px;
+  border: 2.5px solid var(--navy); border-radius: 999px; box-shadow: 0 2px 0 var(--navy-deep);
+}
+.futures-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+.future-btn {
+  display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(180deg, #fff, #eef6ff); border: 2.5px solid var(--navy);
+  border-radius: 12px; padding: 10px 12px; cursor: pointer; color: var(--navy);
+  font-size: 13px; font-family: inherit; font-weight: 700;
+  box-shadow: 0 3px 0 var(--shadow);
+}
+.future-btn:hover:not(:disabled) { background: linear-gradient(180deg, #fff8d6, #ffe884); }
+.future-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: none; }
+.future-btn:disabled { cursor: default; opacity: 0.85; }
+.future-btn.picked { border-color: var(--yellow-deep); background: linear-gradient(180deg, #fff3b0, var(--yellow)); }
+.future-btn.champion { border-color: var(--green); background: linear-gradient(180deg, #e2ffe9, #b8f2c6); }
+.future-btn .odds-chip { color: var(--orange); font-weight: 800; }
+
+/* ランキング */
+.rank-table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--panel); border: 3px solid var(--navy); border-radius: 14px;
+  overflow: hidden; box-shadow: 0 5px 0 var(--shadow);
+}
+.rank-table th {
+  background: var(--navy); color: #fff; font-size: 11px; font-weight: 800;
+  padding: 10px 12px; text-align: left; letter-spacing: 1px;
+}
+.rank-table td {
+  padding: 10px 12px; text-align: left;
+  border-bottom: 2px solid var(--panel-soft); font-weight: 700;
+}
+.rank-table td.points { color: var(--orange); font-weight: 800; font-size: 15px; }
+.rank-table tr.top td { background: #fff8d6; }
+.rank-badge {
+  display: inline-block; width: 26px; height: 26px; line-height: 22px;
+  border-radius: 50%; text-align: center; font-weight: 800; font-size: 12px;
+  background: var(--panel-soft); border: 2px solid var(--navy); color: var(--navy);
+}
+.rank-badge.r1 { background: var(--yellow); }
+.rank-badge.r2 { background: #e3e8f0; }
+.rank-badge.r3 { background: #ffbf8e; }
+.profit-plus { color: var(--green) !important; }
+.profit-minus { color: var(--red) !important; }
+
+/* トーナメント表 */
+.bracket {
+  display: flex; gap: 14px; align-items: flex-start;
+  overflow-x: auto; padding-bottom: 12px;
+}
+.bracket-col { min-width: 195px; flex-shrink: 0; }
+.bracket-col-title {
+  font-size: 12px; font-weight: 800; color: var(--navy);
+  text-align: center; margin-bottom: 10px; letter-spacing: 1px;
+  background: linear-gradient(180deg, #ffe884, var(--yellow));
+  border: 2.5px solid var(--navy); border-radius: 999px; padding: 4px 0;
+  box-shadow: 0 2px 0 var(--navy-deep);
+}
+.bracket-match {
+  background: var(--panel); border: 2.5px solid var(--navy); border-radius: 12px;
+  padding: 6px 8px; margin-bottom: 10px; font-size: 12px;
+  box-shadow: 0 3px 0 var(--shadow); font-weight: 700;
+}
+.bracket-team {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 3px 6px; border-radius: 8px;
+}
+.bracket-team.win { background: #d9f7e2; color: #1c7c37; font-weight: 800; }
+.bracket-team.lose { opacity: 0.45; }
+.bracket-team .score { font-weight: 800; margin-left: 6px; }
+.bracket-day { font-size: 10px; color: var(--muted); text-align: right; margin-top: 2px; }
+.bracket-champion {
+  background: linear-gradient(180deg, #fff3b0, var(--yellow));
+  border: 3px solid var(--navy);
+  border-radius: 12px; padding: 12px; text-align: center;
+  font-weight: 800; color: var(--navy); font-size: 14px;
+  box-shadow: 0 4px 0 var(--yellow-deep);
+}
+.bracket-empty {
+  color: var(--muted); font-size: 11px; text-align: center; padding: 12px 0;
+  background: rgba(255, 255, 255, 0.6); border: 2px dashed rgba(23, 66, 124, 0.35);
+  border-radius: 12px;
+}
+
+/* 管理 */
+.admin-card {
+  background: var(--panel); border: 3px solid var(--navy); border-radius: 16px;
+  padding: 14px; margin-bottom: 14px; box-shadow: 0 5px 0 var(--shadow);
+}
+.admin-card h3 { font-size: 14px; margin: 0 0 10px; }
+.form-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.vs { color: var(--muted); font-weight: 800; }
+.radio-label { display: flex; align-items: center; gap: 4px; cursor: pointer; font-weight: 700; }
 
 /* 絞り込み・AI予想・取消 */
 .filter-row {
   display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px;
 }
 .ai-line {
-  margin-top: 8px; font-size: 12px; color: var(--muted);
-  background: rgba(47, 125, 255, 0.08); border-left: 3px solid var(--accent);
-  border-radius: 0 8px 8px 0; padding: 6px 10px; line-height: 1.6;
+  margin-top: 8px; font-size: 12px; color: var(--navy);
+  background: #eaf3ff; border: 2px solid rgba(23, 66, 124, 0.3);
+  border-left: 6px solid var(--navy);
+  border-radius: 10px; padding: 6px 10px; line-height: 1.7; font-weight: 700;
 }
-.ai-line b { color: var(--text); }
+.ai-line b { color: #c0392b; }
 .cancel-link {
-  background: none; border: 1px solid var(--line); color: var(--muted);
-  border-radius: 6px; padding: 3px 10px; font-size: 11px; cursor: pointer;
+  background: #fff; border: 2px solid var(--muted); color: var(--muted);
+  border-radius: 999px; padding: 3px 12px; font-size: 11px; cursor: pointer;
+  font-family: inherit; font-weight: 800;
 }
-.cancel-link:hover { border-color: var(--lose); color: var(--lose); }
-.tab-panel { display: none; padding: 16px; max-width: 860px; margin: 0 auto; }
-.tab-panel.active { display: block; }
-h2 { font-size: 16px; margin-bottom: 10px; }
-.hint { color: var(--muted); font-size: 12px; margin-bottom: 14px; line-height: 1.7; }
-
-/* 試合カード */
-.day-header {
-  font-size: 13px; font-weight: 800; color: var(--odds);
-  margin: 18px 0 8px; letter-spacing: 1px;
-}
-.match-card {
-  background: var(--panel); border: 1px solid var(--line);
-  border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;
-}
-.match-meta {
-  display: flex; justify-content: space-between; align-items: center;
-  font-size: 11px; color: var(--muted); margin-bottom: 10px;
-}
-.match-meta .round-chip {
-  background: var(--panel2); border-radius: 8px; padding: 2px 8px;
-  font-weight: 700; color: var(--text);
-}
-.pick-row { display: flex; gap: 8px; align-items: stretch; }
-.pick-btn {
-  flex: 1; display: flex; justify-content: space-between; align-items: center;
-  gap: 8px; background: var(--panel2); border: 1.5px solid var(--line);
-  border-radius: 10px; padding: 10px 12px; cursor: pointer; color: var(--text);
-  font-size: 14px; text-align: left;
-}
-.pick-btn:hover:not(:disabled) { border-color: var(--accent); }
-.pick-btn:disabled { cursor: default; opacity: 0.85; }
-.pick-btn .team-name { font-weight: 700; }
-.pick-btn .team-pref { font-size: 11px; color: var(--muted); margin-left: 4px; }
-.pick-btn .odds-chip {
-  background: rgba(255, 176, 46, 0.12); color: var(--odds);
-  border-radius: 8px; padding: 4px 10px; font-weight: 800; font-size: 15px;
-  min-width: 52px; text-align: center;
-}
-.pick-btn.picked { border-color: var(--odds); background: #263250; }
-.odds-move { font-size: 10px; margin-left: 4px; animation: odds-flash 1.2s ease-in-out 3; }
-.odds-move.up { color: var(--win); }
-.odds-move.down { color: var(--lose); }
-@keyframes odds-flash { 50% { opacity: 0.2; } }
-.pick-btn.winner { border-color: var(--win); }
-.pick-btn.loser { opacity: 0.55; }
-.match-foot {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-top: 8px; font-size: 12px; color: var(--muted);
-}
-.result-pill { font-weight: 800; }
-.result-pill.hit { color: var(--win); }
-.result-pill.miss { color: var(--lose); }
-.odds-note { font-size: 11px; }
-
-/* 長期（優勝） */
-.futures-status { font-size: 13px; margin-bottom: 12px; color: var(--odds); font-weight: 700; }
-.futures-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 8px;
-}
-.future-btn {
-  display: flex; justify-content: space-between; align-items: center;
-  background: var(--panel); border: 1.5px solid var(--line); border-radius: 10px;
-  padding: 10px 12px; cursor: pointer; color: var(--text); font-size: 13px;
-}
-.future-btn:hover:not(:disabled) { border-color: var(--accent); }
-.future-btn:disabled { cursor: default; opacity: 0.8; }
-.future-btn.picked { border-color: var(--odds); background: #263250; }
-.future-btn.champion { border-color: var(--win); }
-.future-btn .odds-chip { color: var(--odds); font-weight: 800; }
-
-/* ランキング */
-.rank-table { width: 100%; border-collapse: collapse; }
-.rank-table th, .rank-table td {
-  padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line);
-}
-.rank-table th { color: var(--muted); font-size: 11px; }
-.rank-table td.points { color: var(--odds); font-weight: 800; font-size: 15px; }
-.rank-table tr.top td { background: rgba(255, 176, 46, 0.06); }
-.rank-badge {
-  display: inline-block; width: 24px; height: 24px; line-height: 24px;
-  border-radius: 50%; text-align: center; font-weight: 800; font-size: 12px;
-  background: var(--panel2);
-}
-.rank-badge.r1 { background: var(--odds); color: #0d1220; }
-.rank-badge.r2 { background: #c0c9da; color: #0d1220; }
-.rank-badge.r3 { background: #c98d5a; color: #0d1220; }
-
-/* 管理 */
-.admin-card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-  padding: 14px; margin-bottom: 14px;
-}
-.admin-card h3 { font-size: 14px; margin-bottom: 10px; }
-.form-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-.vs { color: var(--muted); font-weight: 700; }
-.radio-label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.cancel-link:hover { border-color: var(--red); color: var(--red); }
 
 /* トースト */
 .toast {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-  background: var(--panel2); border: 1px solid var(--line); color: var(--text);
-  padding: 10px 18px; border-radius: 10px; font-size: 13px;
+  background: var(--navy); border: 3px solid #fff; color: #fff;
+  padding: 10px 20px; border-radius: 999px; font-size: 13px; font-weight: 800;
   opacity: 0; pointer-events: none; transition: opacity 0.25s;
+  box-shadow: 0 4px 0 var(--shadow);
 }
 .toast.show { opacity: 1; }
-.toast.error { border-color: var(--lose); color: var(--lose); }
+.toast.error { background: var(--red); }
 
 @media (max-width: 560px) {
   .pick-row { flex-direction: column; }

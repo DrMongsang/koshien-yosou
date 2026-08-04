@@ -1,5 +1,6 @@
 // GitHub Pages 用の静的スナップショット出力
 // 使い方: サーバ起動中に `npm run export` → docs/index.html を生成 → git push で公開
+// 今大会のゲームは優勝予想のみ: ボードは日程・結果＋優勝オッズ＋ランキングを載せる
 const fs = require('fs');
 const path = require('path');
 
@@ -22,42 +23,45 @@ const fmtTime = (iso) => (iso ? iso.slice(11, 16) : '');
 
   const card = (m) => {
     const finished = m.status === 'finished';
-    const side = (team, mult) => {
+    const side = (team) => {
       const cls = ['pick-btn'];
       if (finished) cls.push(m.winner_id === team.id ? 'winner' : 'loser');
       return `<div class="${cls.join(' ')}">
         <span><span class="team-name">${esc(team.name)}</span><span class="team-pref">${esc(team.prefecture)}</span></span>
-        <span class="odds-chip">${oddsText(mult)}</span>
       </div>`;
     };
-    const ai = m.ai
-      ? `<div class="ai-line">🤖 AI予想: <b>${esc((m.ai.team_id === m.team1.id ? m.team1 : m.team2).name)}</b> 優勢 ${m.ai.confidence}%${m.ai.comment ? ` — ${esc(m.ai.comment)}` : ''}</div>`
-      : '';
-    const foot = finished
-      ? `<div class="match-foot"><span>試合終了 ${m.score1 != null ? `${m.score1} - ${m.score2}` : ''}（プール ${m.dist.p1} : ${m.dist.p2}pt）</span></div>`
-      : m.locked
-        ? `<div class="match-foot"><span>締切済み・オッズ確定</span></div>`
-        : `<div class="match-foot"><span>締切 ${fmtTime(m.scheduled_at) || '当日8:00'}</span><span class="odds-note">オッズ変動中</span></div>`;
+    const foot = m.status === 'void'
+      ? `<div class="match-foot"><span>試合不成立</span></div>`
+      : finished
+        ? `<div class="match-foot"><span>試合終了${m.extra_innings ? '（延長）' : ''} ${m.score1 != null ? `${m.score1} - ${m.score2}` : ''}</span></div>`
+        : `<div class="match-foot"><span>開始 ${fmtTime(m.scheduled_at) || '未定'}</span></div>`;
     return `<div class="match-card">
       <div class="match-meta"><span class="round-chip">${esc(tournOf(m.tournament_id)?.name ?? '')}｜${esc(m.round_label)} 第${m.game_no}試合 ${fmtTime(m.scheduled_at)}</span></div>
-      <div class="pick-row">${side(m.team1, m.odds.mult1)}${side(m.team2, m.odds.mult2)}</div>
-      ${ai}${foot}
+      <div class="pick-row">${side(m.team1)}${side(m.team2)}</div>
+      ${foot}
     </div>`;
   };
 
+  // 甲子園の「大会第N日」表記（開幕 8/5 起点）
+  const dayTag = (m) => {
+    if (tournOf(m.tournament_id)?.kind !== 'koshien') return '';
+    const n = Math.round(
+      (new Date(`${m.day}T00:00`) - new Date('2026-08-05T00:00')) / 86400000) + 1;
+    return n >= 1 ? `　大会第${n}日` : '';
+  };
   const section = (title, matches) => {
     if (!matches.length) return '';
     let html = `<h2>${title}</h2>`;
     let day = '';
     for (const m of matches) {
-      if (m.day !== day) { day = m.day; html += `<div class="day-header">${fmtDay(day)}</div>`; }
+      if (m.day !== day) { day = m.day; html += `<div class="day-header">${fmtDay(day)}${dayTag(m)}</div>`; }
       html += card(m);
     }
     return html;
   };
 
-  const open = boot.matches.filter((m) => !m.locked);
-  const closed = boot.matches.filter((m) => m.locked).slice().reverse();
+  const upcoming = boot.matches.filter((m) => m.status === 'scheduled');
+  const done = boot.matches.filter((m) => m.status !== 'scheduled').slice().reverse();
 
   const championHtml = boot.champions.map((c) => {
     const t = tournOf(c.tournament_id);
@@ -70,12 +74,41 @@ const fmtTime = (iso) => (iso ? iso.slice(11, 16) : '');
     return `<h3>${esc(t?.name ?? '')}（参加コスト ${c.current_cost}pt）</h3><div class="futures-grid">${rows}</div>`;
   }).join('');
 
+  // トーナメント表（甲子園。ラウンド列形式）
+  const koshien = boot.tournaments.find((t) => t.kind === 'koshien');
+  const bracketHtml = koshien ? (() => {
+    const ms = boot.matches.filter((m) => m.tournament_id === koshien.id);
+    const champion = boot.champions.find((c) => c.tournament_id === koshien.id);
+    const cols = koshien.rounds.map((r, i) => {
+      const list = ms.filter((m) => m.round === i + 1);
+      const body = list.length ? list.map((m) => {
+        const team = (x, other) => {
+          const won = m.status === 'finished' && m.winner_id === x.id;
+          const lost = m.status === 'finished' && m.winner_id === other.id;
+          const score = m.status === 'finished' && m.score1 != null
+            ? `<span class="score">${x.id === m.team1.id ? m.score1 : m.score2}</span>` : '';
+          return `<div class="bracket-team ${won ? 'win' : lost ? 'lose' : ''}"><span>${esc(x.name)}</span>${score}</div>`;
+        };
+        return `<div class="bracket-match">${team(m.team1, m.team2)}${team(m.team2, m.team1)}
+          <div class="bracket-day">${m.status === 'void' ? '不成立' : fmtDay(m.day) + (m.extra_innings ? '・延長' : '')}</div></div>`;
+      }).join('') : '<div class="bracket-empty">組み合わせ未定</div>';
+      return `<div class="bracket-col"><div class="bracket-col-title">${esc(r.label)}</div>${body}</div>`;
+    });
+    let champBody = '<div class="bracket-empty">—</div>';
+    if (champion?.champion_team_id != null) {
+      const ct = boot.teams.find((x) => x.id === champion.champion_team_id);
+      champBody = `<div class="bracket-champion">🏆 ${esc(ct?.name ?? '?')}</div>`;
+    }
+    cols.push(`<div class="bracket-col"><div class="bracket-col-title">優勝</div>${champBody}</div>`);
+    return `<h2>トーナメント表（甲子園）</h2><div class="bracket">${cols.join('')}</div>`;
+  })() : '';
+
   const rankingHtml = boot.ranking.length
     ? boot.ranking.map((r) => {
         const cls = r.profit > 0 ? 'profit-plus' : r.profit < 0 ? 'profit-minus' : '';
         return `<tr><td><span class="rank-badge r${r.rank}">${r.rank}</span></td><td>${esc(r.name)}</td>
           <td class="points ${cls}">${(r.profit > 0 ? '+' : '') + r.profit}pt</td><td>${r.balance}pt</td>
-          <td>${r.hits} / ${r.predicted}</td></tr>`;
+          <td>${r.champion_hits} / ${r.champion_total}</td></tr>`;
       }).join('')
     : '<tr><td colspan="5" class="hint">まだ参加者がいません</td></tr>';
 
@@ -85,6 +118,9 @@ const fmtTime = (iso) => (iso ? iso.slice(11, 16) : '');
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>甲子園予想ボード（読み取り専用）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet">
 <style>${css}</style>
 </head>
 <body>
@@ -97,16 +133,18 @@ const fmtTime = (iso) => (iso ? iso.slice(11, 16) : '');
   <div class="userbox hint">生成: ${new Date().toLocaleString('ja-JP')}（読み取り専用スナップショット）</div>
 </header>
 <main style="max-width:860px;margin:0 auto;padding:16px;">
-${section('受付中の試合', open)}
-${section('結果・締切済み', closed)}
+<p class="hint">今大会のゲームは<b>優勝予想のみ</b>です。オッズは参加者の優勝予想の分布（人数比）で変動します。</p>
+${bracketHtml}
 <h2>優勝オッズ</h2>
 ${championHtml}
 <h2>ランキング（確定収支順）</h2>
 <table class="rank-table">
-<thead><tr><th>順位</th><th>ニックネーム</th><th>収支</th><th>持ち点</th><th>的中 / 予想</th></tr></thead>
+<thead><tr><th>順位</th><th>ニックネーム</th><th>収支</th><th>持ち点</th><th>優勝予想</th></tr></thead>
 <tbody>${rankingHtml}</tbody>
 </table>
-<p class="hint" style="margin-top:20px;">本ボードは金銭・賞品を一切扱わないポイント制予想ゲームの記録です。オッズ・AI予想は参加者内の娯楽のための参考表示であり、実在の学校・選手を評価するものではありません。試合データは公開報道（高野連公式・各報道機関）をもとにしています。</p>
+${section('今後の試合', upcoming)}
+${section('結果', done)}
+<p class="hint" style="margin-top:20px;">本ボードは金銭・賞品を一切扱わないポイント制予想ゲームの記録です。オッズは参加者内の娯楽のための参考表示であり、実在の学校・選手を評価するものではありません。試合データは公開報道（高野連公式・各報道機関）をもとにしています。</p>
 </main>
 </body>
 </html>`;

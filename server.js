@@ -16,6 +16,7 @@ const CHAMPION_BASE = 100;     // 優勝ベットの原則額（払戻はこの�
 const CHAMPION_LATE_FEE = 100; // レイト参加費: 1ラウンド消化ごとの参加コスト増分
 const RELIEF_AMOUNT = 100;     // 救済チップ
 const EXTRA_REFUND_RATE = 0.5; // 延長決着: 勝者側ベットの半金返還率（敗者側・同点扱い分は没収）
+const MATCH_BETTING = false;   // 2026夏は優勝予想のみ（1対1の試合ベットは休止。機能は次回用に温存）
 
 // 管理者パスワード（config.json・git管理外。初回起動時に生成されるので変更推奨）
 const CONFIG_PATH = path.join(__dirname, 'config.json');
@@ -433,6 +434,9 @@ app.get('/api/bootstrap', (req, res) => {
   const userId = session
     ? (session.admin ? Number(req.query.user_id) || null : session.user_id)
     : null;
+  // AI勝率予想は管理者のみ配信（x-admin-token は通常ログインと併用できる別枠トークン）
+  const adminSession = tokens.get(req.get('x-admin-token') || '');
+  const isAdmin = !!(session?.admin || adminSession?.admin);
   const now = new Date();
   const users = db.prepare('SELECT id, name FROM users ORDER BY id').all();
   const teams = db.prepare('SELECT * FROM teams ORDER BY id').all();
@@ -463,7 +467,8 @@ app.get('/api/bootstrap', (req, res) => {
       team1: teamMap.get(m.team1_id), team2: teamMap.get(m.team2_id),
       my_pick: mine?.predicted_winner_id ?? null,
       my_stake: mine?.stake ?? null,
-      ai: aiMap.has(m.id)
+      // AI予想: 管理者は常時、一般ユーザーには試合終了後のみ公開（答え合わせ用）
+      ai: (isAdmin || m.status === 'finished') && aiMap.has(m.id)
         ? { team_id: aiMap.get(m.id).team_id, confidence: aiMap.get(m.id).confidence,
             comment: aiMap.get(m.id).comment }
         : null,
@@ -512,6 +517,7 @@ app.get('/api/bootstrap', (req, res) => {
 
   res.json({
     now: now.toISOString(),
+    match_betting: MATCH_BETTING,
     start_balance: START_BALANCE,
     min_stake: MIN_STAKE,
     relief_amount: RELIEF_AMOUNT,
@@ -579,6 +585,9 @@ function validateStake(stake, balancePlusRefund) {
 }
 
 app.post('/api/predictions', (req, res) => {
+  if (!MATCH_BETTING) {
+    return res.status(400).json({ error: '今大会は優勝予想のみです（試合単位のベットは休止中）' });
+  }
   const user_id = actorUserId(req, res);
   if (user_id == null) return;
   const { match_id, team_id, stake } = req.body;
@@ -649,6 +658,9 @@ app.post('/api/champion', (req, res) => {
 
 // ベット取消（締切前のみ・全額返却）
 app.post('/api/predictions/cancel', (req, res) => {
+  if (!MATCH_BETTING) {
+    return res.status(400).json({ error: '今大会は優勝予想のみです（試合単位のベットは休止中）' });
+  }
   const user_id = actorUserId(req, res);
   if (user_id == null) return;
   const { match_id } = req.body;

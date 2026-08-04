@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>甲子園予想 — ポイント制トーナメント予想</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -26,8 +29,9 @@
 </header>
 
 <nav class="tabs">
-  <button class="tab active" data-tab="matches">試合予想</button>
-  <button class="tab" data-tab="futures">長期（優勝）</button>
+  <button class="tab active" data-tab="matches">日程・結果</button>
+  <button class="tab" data-tab="bracket">トーナメント表</button>
+  <button class="tab" data-tab="futures">優勝予想</button>
   <button class="tab" data-tab="ranking">ランキング</button>
   <button class="tab" data-tab="admin">管理</button>
   <select id="tournament-select" class="tourn-select"></select>
@@ -35,14 +39,7 @@
 
 <div class="betbar">
   <span id="balance-chip" class="balance-chip">持ち点 —</span>
-  <span class="betbar-label">タップ増分</span>
-  <div id="chip-row" class="chip-row">
-    <button class="chip" data-stake="10">+10</button>
-    <button class="chip" data-stake="50">+50</button>
-    <button class="chip" data-stake="100">+100</button>
-    <button class="chip" data-stake="500">+500</button>
-  </div>
-  <span class="betbar-label">上限なし（持ち点の範囲内）</span>
+  <span class="betbar-label">今大会のゲームは「優勝予想」のみ（優勝予想タブからベット）</span>
   <button id="relief-btn" class="btn small relief" hidden>救済チップ +100</button>
 </div>
 
@@ -53,8 +50,14 @@
       <select id="filter-pref"></select>
       <label class="radio-label"><input type="checkbox" id="show-past"> 昨日以前も表示</label>
     </div>
-    <p class="hint">勝つと思う学校をタップするたび選択中の増分だけ積み増し（上限なし・持ち点の範囲内）。オッズはベットが入るたびにポイント量加重で変動し（▲▼）、<b>締切時点のプールで確定</b>。的中で ベット額 × オッズ（上限3.0倍）。<b>9回で決着しない場合は同点扱いで没収</b>（延長で勝ったチームに張っていた人のみ半金返還）。不戦勝など試合不成立は全額返還。🤖 は AI の参考予想です。</p>
+    <p class="hint">全大会の日程と結果の一覧です。今大会のゲームは<b>優勝予想のみ</b>（試合単位のベットは休止中）。優勝予想タブからどうぞ。🤖 AI予想は各試合の終了後に公開されます。</p>
     <div id="match-list"></div>
+  </section>
+
+  <section id="tab-bracket" class="tab-panel">
+    <h2 id="bracket-title">トーナメント表</h2>
+    <p class="hint">左から右へ勝ち上がり。結果確定した試合は勝者に色が付きます。組み合わせが決まった試合から順次埋まります（横スクロール可）。</p>
+    <div id="bracket-view" class="bracket"></div>
   </section>
 
   <section id="tab-futures" class="tab-panel">
@@ -69,7 +72,7 @@
   <section id="tab-ranking" class="tab-panel">
     <h2>ランキング（全大会通算・確定収支順）</h2>
     <table class="rank-table">
-      <thead><tr><th>順位</th><th>ニックネーム</th><th>収支</th><th>持ち点</th><th>的中 / 予想</th><th>救済</th></tr></thead>
+      <thead><tr><th>順位</th><th>ニックネーム</th><th>収支</th><th>持ち点</th><th>優勝予想</th><th>救済</th></tr></thead>
       <tbody id="ranking-body"></tbody>
     </table>
     <p class="hint">収支 = 決着済みベットの「獲得 − ベット額」の合計。持ち点にはベット中のポイントを含みません。救済 = 救済チップ受領回数。</p>
