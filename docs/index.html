@@ -326,6 +326,27 @@ h3 { color: var(--navy); font-size: 14px; margin: 12px 0 8px; font-weight: 800; 
 .toast.show { opacity: 1; }
 .toast.error { background: var(--red); }
 
+/* チャット */
+.chat-list {
+  background: var(--panel); border: 3px solid var(--navy); border-radius: 14px;
+  padding: 12px; height: 50vh; overflow-y: auto; margin-bottom: 10px;
+  box-shadow: 0 4px 0 var(--shadow);
+}
+.chat-msg { margin-bottom: 10px; line-height: 1.6; }
+.chat-msg .chat-name { font-weight: 800; color: var(--navy); margin-right: 6px; }
+.chat-msg .chat-name.chat-admin { color: var(--yellow-deep); }
+.chat-msg .chat-time { font-size: 10px; color: var(--muted); margin-left: 6px; }
+.chat-msg .chat-body { display: block; font-size: 14px; color: var(--navy-deep); }
+.chat-input-row input { flex: 1; }
+
+/* 優勝ベットの取消 */
+.futures-cancel {
+  background: var(--panel); border: 2px solid var(--red); color: var(--red);
+  border-radius: 999px; padding: 5px 14px; font-size: 12px; font-weight: 800;
+  cursor: pointer; margin-left: 10px;
+}
+.futures-cancel:hover { background: var(--red); color: #fff; }
+
 @media (max-width: 560px) {
   .pick-row { flex-direction: column; }
   .topbar { flex-direction: column; align-items: stretch; }
@@ -339,7 +360,7 @@ h3 { color: var(--navy); font-size: 14px; margin: 12px 0 8px; font-weight: 800; 
     <span class="brand-name">甲子園予想ボード</span>
     <span class="brand-badge">ポイント制・賭博なし</span>
   </div>
-  <div class="userbox hint">生成: 2026/8/5 7:52:03（読み取り専用スナップショット）</div>
+  <div class="userbox hint">生成: 2026/8/5 12:46:33（読み取り専用スナップショット）</div>
 </header>
 <main style="max-width:860px;margin:0 auto;padding:16px;">
 <p class="hint">今大会のゲームは<b>優勝予想のみ</b>です。オッズは参加者の優勝予想の分布（人数比）で変動します。</p>
@@ -369,13 +390,15 @@ h3 { color: var(--navy); font-size: 14px; margin: 12px 0 8px; font-weight: 800; 
           <div class="bracket-day">8/11（火）</div></div><div class="bracket-match"><div class="bracket-team "><span>拓大紅陵</span></div><div class="bracket-team "><span>佐賀商</span></div>
           <div class="bracket-day">8/12（水）</div></div></div><div class="bracket-col"><div class="bracket-col-title">3回戦</div><div class="bracket-empty">組み合わせ未定</div></div><div class="bracket-col"><div class="bracket-col-title">準々決勝</div><div class="bracket-empty">組み合わせ未定</div></div><div class="bracket-col"><div class="bracket-col-title">準決勝</div><div class="bracket-empty">組み合わせ未定</div></div><div class="bracket-col"><div class="bracket-col-title">決勝</div><div class="bracket-empty">組み合わせ未定</div></div><div class="bracket-col"><div class="bracket-col-title">優勝</div><div class="bracket-empty">—</div></div></div>
 <h2>優勝オッズ</h2>
-<h3>全国大会（甲子園）（参加コスト 100pt）</h3><div class="futures-grid"><div class="future-btn"><span>白樺学園<span class="team-pref"> 北北海道</span></span><span class="odds-chip">1.00</span></div></div><h3>東東京大会（参加コスト 300pt）</h3><div class="futures-grid"><p class="hint">優勝ベットはまだありません</p></div><h3>西東京大会（参加コスト 300pt）</h3><div class="futures-grid"><p class="hint">優勝ベットはまだありません</p></div><h3>神奈川大会（参加コスト 300pt）</h3><div class="futures-grid"><p class="hint">優勝ベットはまだありません</p></div><h3>大阪大会（参加コスト 400pt）</h3><div class="futures-grid"><p class="hint">優勝ベットはまだありません</p></div><h3>石川大会（参加コスト 200pt）</h3><div class="futures-grid"><p class="hint">優勝ベットはまだありません</p></div><h3>宮城大会（参加コスト 200pt）</h3><div class="futures-grid"><p class="hint">優勝ベットはまだありません</p></div>
+<h3>全国大会（甲子園）（参加コスト 100pt）</h3><div class="futures-grid"><div class="future-btn"><span>白樺学園<span class="team-pref"> 北北海道</span></span><span class="odds-chip">1.00</span></div></div>
 <h2>ランキング（確定収支順）</h2>
 <table class="rank-table">
 <thead><tr><th>順位</th><th>ニックネーム</th><th>収支</th><th>持ち点</th><th>優勝予想</th></tr></thead>
 <tbody><tr><td><span class="rank-badge r1">1</span></td><td>テスト</td>
           <td class="points ">0pt</td><td>900pt</td>
-          <td>0 / 1</td></tr></tbody>
+          <td>0 / 1</td></tr><tr><td><span class="rank-badge r1">1</span></td><td>たかし</td>
+          <td class="points ">0pt</td><td>1000pt</td>
+          <td>0 / 0</td></tr></tbody>
 </table>
 <h2>今後の試合</h2><div class="day-header">8/5（水）　大会第1日</div><div class="match-card">
       <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第1試合 17:30</span></div>
@@ -570,151 +593,7 @@ h3 { color: var(--navy); font-size: 14px; margin: 12px 0 8px; font-weight: 800; 
       </div></div>
       <div class="match-foot"><span>開始 08:00</span></div>
     </div>
-<h2>結果</h2><div class="day-header">7/28（火）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">宮城大会｜決勝 第1試合 15:00</span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">仙台育英</span><span class="team-pref">宮城</span></span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">東北</span><span class="team-pref">宮城</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 4 - 1</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">大阪大会｜決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">履正社</span><span class="team-pref">大阪</span></span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">箕面学園</span><span class="team-pref">大阪</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 16 - 2</span></div>
-    </div><div class="day-header">7/27（月）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">東東京大会｜決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">関東第一</span><span class="team-pref">東東京</span></span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">二松学舎大付</span><span class="team-pref">東東京</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 10 - 4</span></div>
-    </div><div class="day-header">7/26（日）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">石川大会｜決勝 第1試合 09:00</span></div>
-      <div class="pick-row"><div class="pick-btn loser">
-        <span><span class="team-name">金沢</span><span class="team-pref">石川</span></span>
-      </div><div class="pick-btn winner">
-        <span><span class="team-name">遊学館</span><span class="team-pref">石川</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 3 - 4</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">大阪大会｜準決勝 第2試合 </span></div>
-      <div class="pick-row"><div class="pick-btn loser">
-        <span><span class="team-name">東海大大阪仰星</span><span class="team-pref">大阪</span></span>
-      </div><div class="pick-btn winner">
-        <span><span class="team-name">箕面学園</span><span class="team-pref">大阪</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 6 - 7</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">大阪大会｜準決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn loser">
-        <span><span class="team-name">金光大阪</span><span class="team-pref">大阪</span></span>
-      </div><div class="pick-btn winner">
-        <span><span class="team-name">履正社</span><span class="team-pref">大阪</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 0 - 6</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">神奈川大会｜決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">横浜</span><span class="team-pref">神奈川</span></span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">桐光学園</span><span class="team-pref">神奈川</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 11 - 1</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">西東京大会｜決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">八王子実践</span><span class="team-pref">西東京</span></span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">創価</span><span class="team-pref">西東京</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 1 - 0</span></div>
-    </div><div class="day-header">7/25（土）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">東東京大会｜準決勝 第2試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">二松学舎大付</span><span class="team-pref">東東京</span></span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">帝京</span><span class="team-pref">東東京</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 7 - 3</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">東東京大会｜準決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn loser">
-        <span><span class="team-name">目黒日大</span><span class="team-pref">東東京</span></span>
-      </div><div class="pick-btn winner">
-        <span><span class="team-name">関東第一</span><span class="team-pref">東東京</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 0 - 7</span></div>
-    </div><div class="day-header">7/24（金）</div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">神奈川大会｜準決勝 第2試合 11:30</span></div>
-      <div class="pick-row"><div class="pick-btn loser">
-        <span><span class="team-name">鎌倉学園</span><span class="team-pref">神奈川</span></span>
-      </div><div class="pick-btn winner">
-        <span><span class="team-name">桐光学園</span><span class="team-pref">神奈川</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 5 - 10</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">神奈川大会｜準決勝 第1試合 09:00</span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">横浜</span><span class="team-pref">神奈川</span></span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">慶應義塾</span><span class="team-pref">神奈川</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 4 - 0</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">大阪大会｜準々決勝 第4試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">東海大大阪仰星</span><span class="team-pref">大阪</span></span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">生野</span><span class="team-pref">大阪</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 5 - 2</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">大阪大会｜準々決勝 第3試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">箕面学園</span><span class="team-pref">大阪</span></span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">大商大</span><span class="team-pref">大阪</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 3 - 2</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">大阪大会｜準々決勝 第2試合 </span></div>
-      <div class="pick-row"><div class="pick-btn loser">
-        <span><span class="team-name">関大北陽</span><span class="team-pref">大阪</span></span>
-      </div><div class="pick-btn winner">
-        <span><span class="team-name">金光大阪</span><span class="team-pref">大阪</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 1 - 4</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">大阪大会｜準々決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">履正社</span><span class="team-pref">大阪</span></span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">近大付</span><span class="team-pref">大阪</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 7 - 1</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">西東京大会｜準決勝 第2試合 </span></div>
-      <div class="pick-row"><div class="pick-btn winner">
-        <span><span class="team-name">八王子実践</span><span class="team-pref">西東京</span></span>
-      </div><div class="pick-btn loser">
-        <span><span class="team-name">明大八王子</span><span class="team-pref">西東京</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 4 - 2</span></div>
-    </div><div class="match-card">
-      <div class="match-meta"><span class="round-chip">西東京大会｜準決勝 第1試合 </span></div>
-      <div class="pick-row"><div class="pick-btn loser">
-        <span><span class="team-name">日大三</span><span class="team-pref">西東京</span></span>
-      </div><div class="pick-btn winner">
-        <span><span class="team-name">創価</span><span class="team-pref">西東京</span></span>
-      </div></div>
-      <div class="match-foot"><span>試合終了 4 - 7</span></div>
-    </div>
+
 <p class="hint" style="margin-top:20px;">本ボードは金銭・賞品を一切扱わないポイント制予想ゲームの記録です。オッズは参加者内の娯楽のための参考表示であり、実在の学校・選手を評価するものではありません。試合データは公開報道（高野連公式・各報道機関）をもとにしています。</p>
 </main>
 </body>

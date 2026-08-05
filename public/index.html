@@ -29,12 +29,12 @@
 </header>
 
 <nav class="tabs">
-  <button class="tab active" data-tab="matches">日程・結果</button>
+  <button class="tab active" data-tab="futures">優勝予想</button>
   <button class="tab" data-tab="bracket">トーナメント表</button>
-  <button class="tab" data-tab="futures">優勝予想</button>
+  <button class="tab" data-tab="matches">日程・結果</button>
+  <button class="tab" data-tab="chat">チャット</button>
   <button class="tab" data-tab="ranking">ランキング</button>
   <button class="tab" data-tab="admin">管理</button>
-  <select id="tournament-select" class="tourn-select"></select>
 </nav>
 
 <div class="betbar">
@@ -44,14 +44,13 @@
 </div>
 
 <main>
-  <section id="tab-matches" class="tab-panel active">
-    <div class="filter-row">
-      <select id="filter-block"></select>
-      <select id="filter-pref"></select>
-      <label class="radio-label"><input type="checkbox" id="show-past"> 昨日以前も表示</label>
+  <section id="tab-futures" class="tab-panel active">
+    <div class="futures-head">
+      <h2>優勝校を選んでベット</h2>
+      <p class="hint">優勝すると思う学校を<b>1校タップするだけ</b>。1ベット原則100pt・決勝開始まで変更自由。的中で <b>100pt × オッズ（上限5.0倍）</b>。オッズはみんなの予想の分布で変動します。開幕後は1ラウンド消化ごとに参加コストが+100pt（現在: <b><span id="futures-cost">100</span>pt</b>。増額分は払戻対象外）。</p>
+      <p id="futures-status" class="futures-status"></p>
     </div>
-    <p class="hint">全大会の日程と結果の一覧です。今大会のゲームは<b>優勝予想のみ</b>（試合単位のベットは休止中）。優勝予想タブからどうぞ。🤖 AI予想は各試合の終了後に公開されます。</p>
-    <div id="match-list"></div>
+    <div id="futures-grid" class="futures-grid"></div>
   </section>
 
   <section id="tab-bracket" class="tab-panel">
@@ -60,17 +59,23 @@
     <div id="bracket-view" class="bracket"></div>
   </section>
 
-  <section id="tab-futures" class="tab-panel">
-    <div class="futures-head">
-      <h2>優勝校予想</h2>
-      <p class="hint">大会ごとに1校、<b>1ベット原則100pt</b>。的中で <b>100pt × オッズ（上限5.0倍）</b>。レイト参加も可能ですが、1ラウンド消化ごとに参加コストが +100pt（現在: <b><span id="futures-cost">100</span>pt</b>）。増額分は払戻に含まれない「後出し料」です。締切は決勝開始まで。地方大会の優勝予想は「甲子園出場校」の予想でもあります。</p>
-      <p id="futures-status" class="futures-status"></p>
+  <section id="tab-matches" class="tab-panel">
+    <p class="hint">甲子園の日程と結果です（試合単位のベットは休止中。ゲームは優勝予想のみ）。</p>
+    <div id="match-list"></div>
+  </section>
+
+  <section id="tab-chat" class="tab-panel">
+    <h2>チャット</h2>
+    <p class="hint">参加者どうしの雑談・煽り合いはこちらで。投稿にはログインが必要です（300文字まで）。</p>
+    <div id="chat-list" class="chat-list"></div>
+    <div class="form-row chat-input-row">
+      <input id="chat-input" type="text" placeholder="メッセージを入力" maxlength="300">
+      <button id="chat-send" class="btn">送信</button>
     </div>
-    <div id="futures-grid" class="futures-grid"></div>
   </section>
 
   <section id="tab-ranking" class="tab-panel">
-    <h2>ランキング（全大会通算・確定収支順）</h2>
+    <h2>ランキング（確定収支順）</h2>
     <table class="rank-table">
       <thead><tr><th>順位</th><th>ニックネーム</th><th>収支</th><th>持ち点</th><th>優勝予想</th><th>救済</th></tr></thead>
       <tbody id="ranking-body"></tbody>

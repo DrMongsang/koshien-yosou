@@ -3,25 +3,10 @@ const state = {
   data: null,
   token: localStorage.getItem('koshien_token') || null,       // ユーザーのログイントークン
   adminToken: localStorage.getItem('koshien_admin') || null,  // 管理者トークン（別枠）
-  tournamentId: Number(localStorage.getItem('koshien_tournament')) || null,
-  step: Number(localStorage.getItem('koshien_step')) || 10,   // 1タップの増分
-  filterBlock: '',
-  filterPref: '',
-  showPast: false,
+  tournamentId: null,  // 表示対象の大会（常に甲子園。load() で解決）
+  step: Number(localStorage.getItem('koshien_step')) || 10,   // 1タップの増分（試合ベット休止中は未使用）
 };
 const prevOdds = new Map(); // "matchId:teamId" → 前回描画時のオッズ（▲▼表示用）
-
-// 都道府県 → ブロック（高校野球の地区区分）
-const BLOCKS = {
-  '北海道・東北': ['北北海道', '南北海道', '青森', '岩手', '秋田', '山形', '宮城', '福島'],
-  '関東': ['茨城', '栃木', '群馬', '埼玉', '千葉', '東東京', '西東京', '神奈川', '山梨'],
-  '北信越': ['新潟', '長野', '富山', '石川', '福井'],
-  '東海': ['静岡', '愛知', '岐阜', '三重'],
-  '近畿': ['滋賀', '京都', '大阪', '兵庫', '奈良', '和歌山'],
-  '中国': ['岡山', '広島', '鳥取', '島根', '山口'],
-  '四国': ['香川', '徳島', '愛媛', '高知'],
-  '九州・沖縄': ['福岡', '佐賀', '長崎', '熊本', '大分', '宮崎', '鹿児島', '沖縄'],
-};
 
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
@@ -46,8 +31,10 @@ async function api(path, body, token = state.token) {
   return json;
 }
 const adminApi = (path, body) => {
-  if (!state.adminToken) throw new Error('管理タブで管理者ログインしてください');
-  return api(path, body, state.adminToken);
+  // 管理者ユーザー（たかし）は自分のログイントークンがそのまま管理者権限を持つ
+  const token = state.adminToken || (state.data?.me?.admin ? state.token : null);
+  if (!token) throw new Error('管理タブで管理者ログインしてください');
+  return api(path, body, token);
 };
 
 async function load() {
@@ -62,22 +49,57 @@ async function load() {
     state.token = null;
     localStorage.removeItem('koshien_token');
   }
-  if (!state.data.tournaments.some((t) => t.id === state.tournamentId)) {
-    state.tournamentId = state.data.tournaments[0]?.id ?? null;
-  }
+  // 表示は甲子園のみ（地方大会のデータはDBに残るが画面には出さない）
+  state.tournamentId =
+    state.data.tournaments.find((t) => t.kind === 'koshien')?.id
+    ?? state.data.tournaments[0]?.id ?? null;
   renderAll();
 }
 
 function renderAll() {
   renderLogin();
-  renderTournamentSelect();
   renderBetBar();
-  renderFilters();
   renderMatches();
   renderBracket();
   renderFutures();
+  renderChat();
   renderRanking();
   renderAdmin();
+}
+
+// ---- チャット -----------------------------------------------------------------
+function renderChat() {
+  const list = $('#chat-list');
+  const chat = state.data.chat || [];
+  const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 40;
+  list.innerHTML = chat.length
+    ? chat.map((c) => {
+        const time = new Date(c.created_at).toLocaleString('ja-JP', {
+          month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
+        });
+        const adminCls = c.name === '管理者' ? ' chat-admin' : '';
+        return `<div class="chat-msg">
+          <span class="chat-name${adminCls}">${esc(c.name)}</span><span class="chat-time">${time}</span>
+          <span class="chat-body">${esc(c.body)}</span>
+        </div>`;
+      }).join('')
+    : '<p class="hint">まだ書き込みがありません。一番乗りでどうぞ。</p>';
+  if (atBottom || !list.dataset.scrolled) list.scrollTop = list.scrollHeight;
+  list.dataset.scrolled = '1';
+}
+
+async function sendChat() {
+  const input = $('#chat-input');
+  const body = input.value.trim();
+  if (!body) return;
+  if (!state.data.me) return toast('チャットの投稿にはログインが必要です', true);
+  try {
+    // ユーザーとしてログイン中なら本人名義、管理者パスワードのみのログインなら「管理者」名義
+    const token = state.token ?? state.adminToken;
+    await api('/api/chat', { body }, token);
+    input.value = '';
+    await load();
+  } catch (e) { toast(e.message, true); }
 }
 
 const currentTournament = () =>
@@ -147,13 +169,6 @@ function renderLogin() {
   if (me) $('#me-name').textContent = `⚾ ${me.name ?? '管理者'}`;
 }
 
-function renderTournamentSelect() {
-  fillSelect($('#tournament-select'),
-    state.data.tournaments.map((t) =>
-      `<option value="${t.id}" ${t.id === state.tournamentId ? 'selected' : ''}>${esc(t.name)}</option>`).join(''),
-    false);
-}
-
 function renderBetBar() {
   const bal = state.data.my_balance;
   $('#balance-chip').textContent =
@@ -164,47 +179,9 @@ function renderBetBar() {
   $('#relief-btn').hidden = !(bal != null && bal < state.data.min_stake);
 }
 
-// ---- 絞り込み（ブロック・都道府県） --------------------------------------------
-function matchPref(m) {
-  const t = state.data.tournaments.find((x) => x.id === m.tournament_id);
-  return t?.kind === 'koshien' ? '全国' : m.team1.prefecture;
-}
-
-function renderFilters() {
-  const prefsInData = [...new Set(state.data.matches.map(matchPref))];
-  const blockOpts = ['<option value="">全ブロック</option>'];
-  if (prefsInData.includes('全国')) blockOpts.push('<option value="全国">全国大会</option>');
-  for (const b of Object.keys(BLOCKS)) {
-    if (BLOCKS[b].some((p) => prefsInData.includes(p))) {
-      blockOpts.push(`<option value="${b}">${b}</option>`);
-    }
-  }
-  fillSelect($('#filter-block'), blockOpts.join(''), false);
-  $('#filter-block').value = state.filterBlock;
-
-  const prefPool = state.filterBlock === ''
-    ? prefsInData
-    : state.filterBlock === '全国' ? ['全国']
-    : prefsInData.filter((p) => (BLOCKS[state.filterBlock] || []).includes(p));
-  if (state.filterPref && !prefPool.includes(state.filterPref)) state.filterPref = '';
-  fillSelect($('#filter-pref'),
-    '<option value="">全都道府県</option>' +
-    prefPool.map((p) => `<option value="${p}">${esc(p)}</option>`).join(''), false);
-  $('#filter-pref').value = state.filterPref;
-}
-
+// ---- 表示対象は甲子園の全試合（日付順） ----------------------------------------
 function visibleMatches() {
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  return state.data.matches.filter((m) => {
-    if (!state.showPast && m.day < todayStr) return false;
-    const pref = matchPref(m);
-    if (state.filterBlock === '全国' && pref !== '全国') return false;
-    if (state.filterBlock && state.filterBlock !== '全国' &&
-        !(BLOCKS[state.filterBlock] || []).includes(pref)) return false;
-    if (state.filterPref && pref !== state.filterPref) return false;
-    return true;
-  });
+  return state.data.matches.filter((m) => m.tournament_id === state.tournamentId);
 }
 
 // ---- 試合予想 -----------------------------------------------------------------
@@ -240,7 +217,7 @@ function renderMatches() {
   const wrap = $('#match-list');
   const matches = visibleMatches();
   if (!matches.length) {
-    wrap.innerHTML = '<p class="hint">条件に合う試合がありません。絞り込みを変えるか、管理タブから試合を追加してください。</p>';
+    wrap.innerHTML = '<p class="hint">試合はまだ登録されていません。</p>';
     return;
   }
   let html = '';
@@ -337,7 +314,7 @@ async function pick(matchId, teamId) {
   if (!state.data.match_betting) {
     return toast('今大会は優勝予想のみです（優勝予想タブからどうぞ）', true);
   }
-  if (!state.data.me || state.data.me.admin) {
+  if (!state.data.me || state.data.me.user_id == null) {
     return toast('右上からニックネームとパスワードでログインしてください', true);
   }
   const m = state.data.matches.find((x) => x.id === matchId);
@@ -374,7 +351,16 @@ function renderFutures() {
   } else {
     const parts = [`参加コスト ${champion.current_cost}pt`];
     if (champion.lock_at) parts.push(`締切 ${new Date(champion.lock_at).toLocaleString('ja-JP')}`);
-    status.textContent = parts.join('　');
+    status.innerHTML = esc(parts.join('　')) +
+      (champion.my_pick != null
+        ? '<button id="futures-cancel" class="futures-cancel">ベット取消（全額返却）</button>' : '');
+    $('#futures-cancel')?.addEventListener('click', async () => {
+      try {
+        await api('/api/champion/cancel', { tournament_id: state.tournamentId });
+        await load();
+        toast('優勝ベットを取り消しました（全額返却）');
+      } catch (e) { toast(e.message, true); }
+    });
   }
 
   grid.innerHTML = myTeams.map((t) => {
@@ -392,7 +378,7 @@ function renderFutures() {
 
   grid.querySelectorAll('.future-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      if (!state.data.me || state.data.me.admin) {
+      if (!state.data.me || state.data.me.user_id == null) {
         return toast('右上からニックネームとパスワードでログインしてください', true);
       }
       try {
@@ -430,7 +416,8 @@ function renderRanking() {
 
 // ---- 管理 ---------------------------------------------------------------------
 function renderAdmin() {
-  $('#admin-status').textContent = state.adminToken ? '✔ 管理者ログイン中' : '';
+  $('#admin-status').textContent =
+    (state.adminToken || state.data.me?.admin) ? '✔ 管理者ログイン中' : '';
   const { matches, teams, tournaments } = state.data;
   const tName = (id) => tournaments.find((t) => t.id === id)?.name ?? '?';
   const matchLabel = (m) =>
@@ -514,29 +501,6 @@ $('#admin-login-btn').addEventListener('click', async () => {
   } catch (e) { toast(e.message, true); }
 });
 
-document.querySelectorAll('.chip').forEach((c) => {
-  c.addEventListener('click', () => {
-    state.step = Number(c.dataset.stake);
-    localStorage.setItem('koshien_step', state.step);
-    renderBetBar();
-  });
-});
-
-$('#filter-block').addEventListener('change', (e) => {
-  state.filterBlock = e.target.value;
-  state.filterPref = '';
-  renderFilters();
-  renderMatches();
-});
-$('#filter-pref').addEventListener('change', (e) => {
-  state.filterPref = e.target.value;
-  renderMatches();
-});
-$('#show-past').addEventListener('change', (e) => {
-  state.showPast = e.target.checked;
-  renderMatches();
-});
-
 $('#relief-btn').addEventListener('click', async () => {
   try {
     await api('/api/relief', {});
@@ -545,10 +509,9 @@ $('#relief-btn').addEventListener('click', async () => {
   } catch (e) { toast(e.message, true); }
 });
 
-$('#tournament-select').addEventListener('change', (e) => {
-  state.tournamentId = Number(e.target.value) || null;
-  if (state.tournamentId) localStorage.setItem('koshien_tournament', state.tournamentId);
-  renderAll();
+$('#chat-send').addEventListener('click', sendChat);
+$('#chat-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.isComposing) sendChat();
 });
 
 $('#result-match').addEventListener('change', renderWinnerRadios);

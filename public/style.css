@@ -317,6 +317,27 @@ h3 { color: var(--navy); font-size: 14px; margin: 12px 0 8px; font-weight: 800; 
 .toast.show { opacity: 1; }
 .toast.error { background: var(--red); }
 
+/* チャット */
+.chat-list {
+  background: var(--panel); border: 3px solid var(--navy); border-radius: 14px;
+  padding: 12px; height: 50vh; overflow-y: auto; margin-bottom: 10px;
+  box-shadow: 0 4px 0 var(--shadow);
+}
+.chat-msg { margin-bottom: 10px; line-height: 1.6; }
+.chat-msg .chat-name { font-weight: 800; color: var(--navy); margin-right: 6px; }
+.chat-msg .chat-name.chat-admin { color: var(--yellow-deep); }
+.chat-msg .chat-time { font-size: 10px; color: var(--muted); margin-left: 6px; }
+.chat-msg .chat-body { display: block; font-size: 14px; color: var(--navy-deep); }
+.chat-input-row input { flex: 1; }
+
+/* 優勝ベットの取消 */
+.futures-cancel {
+  background: var(--panel); border: 2px solid var(--red); color: var(--red);
+  border-radius: 999px; padding: 5px 14px; font-size: 12px; font-weight: 800;
+  cursor: pointer; margin-left: 10px;
+}
+.futures-cancel:hover { background: var(--red); color: #fff; }
+
 @media (max-width: 560px) {
   .pick-row { flex-direction: column; }
   .topbar { flex-direction: column; align-items: stretch; }

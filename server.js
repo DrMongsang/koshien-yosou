@@ -24,7 +24,10 @@ if (!fs.existsSync(CONFIG_PATH)) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify({ admin_password: 'koshien-admin' }, null, 2));
   console.log('config.json を生成しました（管理者パスワード初期値: koshien-admin。変更推奨）');
 }
-const CONFIG = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+// BOM 付きで保存されても読めるようにする（メモ帳・PowerShell 対策）
+const CONFIG = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8').replace(/^﻿/, ''));
+// この名前のユーザーはログインすると自動で管理者モードになる（config.json の admin_user で変更可）
+const ADMIN_USER = CONFIG.admin_user || 'たかし';
 
 // 大会種別テンプレート: round(1始まり) → ラベル・基礎pt（基礎ptはステーク上限の基準）
 const TEMPLATES = {
@@ -129,6 +132,12 @@ CREATE TABLE IF NOT EXISTS ai_predictions (
   comment TEXT,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),  -- NULL = 管理者の書き込み
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 `);
 
 // 既存DBへの追加カラム移行（データ保持のため ALTER で行う）
@@ -163,11 +172,12 @@ function auth(req) {
   return tokens.get(req.get('x-token') || '') || null;
 }
 // ベット系: 通常ユーザーは自分自身のみ、管理者は body.user_id で代理操作可
+// （管理者ユーザー = たかし は user_id を省略すると自分自身のベットになる）
 function actorUserId(req, res) {
   const session = auth(req);
   if (!session) { res.status(401).json({ error: 'ログインしてください' }); return null; }
   if (session.admin) {
-    const uid = Number(req.body.user_id);
+    const uid = Number(req.body.user_id) || session.user_id || null;
     if (!uid) { res.status(400).json({ error: '管理者操作は user_id の指定が必要です' }); return null; }
     return uid;
   }
@@ -432,7 +442,9 @@ app.get('/api/bootstrap', (req, res) => {
   const session = auth(req);
   // 自分のベットは自分（または管理者の代理照会）だけが見られる
   const userId = session
-    ? (session.admin ? Number(req.query.user_id) || null : session.user_id)
+    ? (session.admin
+        ? Number(req.query.user_id) || session.user_id || null
+        : session.user_id)
     : null;
   // AI勝率予想は管理者のみ配信（x-admin-token は通常ログインと併用できる別枠トークン）
   const adminSession = tokens.get(req.get('x-admin-token') || '');
@@ -467,8 +479,8 @@ app.get('/api/bootstrap', (req, res) => {
       team1: teamMap.get(m.team1_id), team2: teamMap.get(m.team2_id),
       my_pick: mine?.predicted_winner_id ?? null,
       my_stake: mine?.stake ?? null,
-      // AI予想: 管理者は常時、一般ユーザーには試合終了後のみ公開（答え合わせ用）
-      ai: (isAdmin || m.status === 'finished') && aiMap.has(m.id)
+      // AI予想は管理者のみ（一般ユーザーには一切配信しない）
+      ai: isAdmin && aiMap.has(m.id)
         ? { team_id: aiMap.get(m.id).team_id, confidence: aiMap.get(m.id).confidence,
             comment: aiMap.get(m.id).comment }
         : null,
@@ -515,6 +527,15 @@ app.get('/api/bootstrap', (req, res) => {
 
   const stats = userId ? computeStats().get(userId) : null;
 
+  // チャット（直近50件・古い順）
+  const chat = db.prepare(`
+    SELECT c.id, c.body, c.created_at, u.name
+    FROM chat_messages c LEFT JOIN users u ON u.id = c.user_id
+    ORDER BY c.id DESC LIMIT 50
+  `).all().reverse().map((c) => ({
+    id: c.id, name: c.name ?? '管理者', body: c.body, created_at: c.created_at,
+  }));
+
   res.json({
     now: now.toISOString(),
     match_betting: MATCH_BETTING,
@@ -523,10 +544,10 @@ app.get('/api/bootstrap', (req, res) => {
     relief_amount: RELIEF_AMOUNT,
     my_balance: stats?.balance ?? null,
     me: session
-      ? (session.admin
-          ? { admin: true }
-          : { admin: false, user_id: session.user_id,
-              name: users.find((u) => u.id === session.user_id)?.name ?? '' })
+      ? { admin: !!session.admin, user_id: session.user_id ?? null,
+          name: session.user_id != null
+            ? (users.find((u) => u.id === session.user_id)?.name ?? '')
+            : null }
       : null,
     users, teams,
     tournaments: tournaments.map((t) => ({
@@ -537,7 +558,21 @@ app.get('/api/bootstrap', (req, res) => {
     matches,
     ranking: computeRanking(),
     champions,
+    chat,
   });
+});
+
+// チャット投稿（ログイン必須。管理者は「管理者」名義）
+app.post('/api/chat', (req, res) => {
+  const session = auth(req);
+  if (!session) return res.status(401).json({ error: 'ログインしてください' });
+  const body = String(req.body.body || '').trim();
+  if (!body) return res.status(400).json({ error: 'メッセージを入力してください' });
+  if (body.length > 300) return res.status(400).json({ error: 'メッセージは300文字までです' });
+  db.prepare('INSERT INTO chat_messages (user_id, body, created_at) VALUES (?, ?, ?)')
+    .run(session.user_id ?? null, body, new Date().toISOString());
+  broadcast();
+  res.json({ ok: true });
 });
 
 // 新規参加（名前＋パスワード）。登録と同時にログイン扱い
@@ -549,7 +584,8 @@ app.post('/api/users', (req, res) => {
   try {
     const info = db.prepare('INSERT INTO users (name, password_hash) VALUES (?, ?)')
       .run(name, hashPassword(password));
-    res.json({ id: info.lastInsertRowid, name, token: issueToken({ user_id: Number(info.lastInsertRowid) }) });
+    res.json({ id: info.lastInsertRowid, name,
+      token: issueToken({ user_id: Number(info.lastInsertRowid), admin: name === ADMIN_USER }) });
   } catch {
     res.status(409).json({ error: 'そのニックネームは既に使われています' });
   }
@@ -567,7 +603,8 @@ app.post('/api/login', (req, res) => {
   } else if (!verifyPassword(password, user.password_hash)) {
     return res.status(401).json({ error: 'パスワードが違います' });
   }
-  res.json({ id: user.id, name: user.name, token: issueToken({ user_id: user.id }) });
+  res.json({ id: user.id, name: user.name,
+    token: issueToken({ user_id: user.id, admin: user.name === ADMIN_USER }) });
 });
 
 app.post('/api/admin/login', (req, res) => {
@@ -654,6 +691,27 @@ app.post('/api/champion', (req, res) => {
     .run(user_id, tournament_id, team_id, cost, new Date().toISOString());
   broadcast();
   res.json({ ok: true, cost });
+});
+
+// 優勝ベットの取消（決勝開始前のみ・支払ったコストを全額返却）
+app.post('/api/champion/cancel', (req, res) => {
+  const user_id = actorUserId(req, res);
+  if (user_id == null) return;
+  const { tournament_id } = req.body;
+  const tournament = db.prepare('SELECT * FROM tournaments WHERE id = ?').get(tournament_id);
+  if (!tournament) return res.status(404).json({ error: '大会が見つかりません' });
+  if (championTeamId(tournament) != null) {
+    return res.status(400).json({ error: 'この大会は決着済みのため取消できません' });
+  }
+  const lockAt = championLockAt(tournament);
+  if (lockAt && new Date() >= lockAt) {
+    return res.status(400).json({ error: '決勝開始後は取消できません' });
+  }
+  const del = db.prepare('DELETE FROM champion_picks WHERE user_id = ? AND tournament_id = ?')
+    .run(user_id, tournament_id);
+  if (!del.changes) return res.status(404).json({ error: '優勝ベットが見つかりません' });
+  broadcast();
+  res.json({ ok: true });
 });
 
 // ベット取消（締切前のみ・全額返却）

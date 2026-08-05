@@ -20,6 +20,10 @@ const fmtTime = (iso) => (iso ? iso.slice(11, 16) : '');
   const boot = await (await fetch(`${BASE}/api/bootstrap`)).json();
   const css = fs.readFileSync(path.join(__dirname, 'public', 'style.css'), 'utf8');
   const tournOf = (id) => boot.tournaments.find((t) => t.id === id);
+  // ボードは甲子園のみ（地方大会はDBに残るが掲載しない）
+  const koshienT = boot.tournaments.find((t) => t.kind === 'koshien');
+  boot.matches = boot.matches.filter((m) => m.tournament_id === koshienT?.id);
+  boot.champions = boot.champions.filter((c) => c.tournament_id === koshienT?.id);
 
   const card = (m) => {
     const finished = m.status === 'finished';
