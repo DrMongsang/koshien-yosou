@@ -166,6 +166,7 @@ function renderLogin() {
   const me = state.data.me;
   $('#login-box').hidden = !!me;
   $('#me-box').hidden = !me;
+  $('#login-hint').hidden = !!me;
   if (me) $('#me-name').textContent = `⚾ ${me.name ?? '管理者'}`;
 }
 
@@ -176,7 +177,8 @@ function renderBetBar() {
   document.querySelectorAll('.chip').forEach((c) => {
     c.classList.toggle('selected', Number(c.dataset.stake) === state.step);
   });
-  $('#relief-btn').hidden = !(bal != null && bal < state.data.min_stake);
+  // 救済チップは試合ベット用の仕組みなので、優勝予想のみの今大会では出さない
+  $('#relief-btn').hidden = !(state.data.match_betting && bal != null && bal < state.data.min_stake);
 }
 
 // ---- 表示対象は甲子園の全試合（日付順） ----------------------------------------
@@ -340,39 +342,38 @@ function renderFutures() {
   const grid = $('#futures-grid');
   const status = $('#futures-status');
   if (!champion) { grid.innerHTML = ''; status.textContent = ''; return; }
-  $('#futures-cost').textContent = champion.current_cost;
 
   const myTeams = teams.filter((t) => t.tournament_id === state.tournamentId);
+  const myPicks = champion.my_picks || [];
+
   if (champion.champion_team_id != null) {
     const t = teams.find((x) => x.id === champion.champion_team_id);
-    status.textContent = `🏆 優勝: ${t ? t.name : '?'}`;
+    status.textContent = `🏆 優勝: ${t ? t.name : '?'}` +
+      (champion.pot != null ? `　ポット ${champion.pot.toLocaleString()}pt の行方はランキング参照` : '');
+  } else if (champion.picks_open) {
+    status.textContent = `予想公開済み・ベット締切　ポット ${champion.pot?.toLocaleString() ?? '—'}pt`;
   } else if (champion.locked) {
     status.textContent = '決勝開始後のためロックされています';
   } else {
-    const parts = [`参加コスト ${champion.current_cost}pt`];
-    if (champion.lock_at) parts.push(`締切 ${new Date(champion.lock_at).toLocaleString('ja-JP')}`);
-    status.innerHTML = esc(parts.join('　')) +
-      (champion.my_pick != null
-        ? '<button id="futures-cancel" class="futures-cancel">ベット取消（全額返却）</button>' : '');
-    $('#futures-cancel')?.addEventListener('click', async () => {
-      try {
-        await api('/api/champion/cancel', { tournament_id: state.tournamentId });
-        await load();
-        toast('優勝ベットを取り消しました（全額返却）');
-      } catch (e) { toast(e.message, true); }
-    });
+    status.textContent =
+      `クローズド期間中 — お互いの予想は公開まで見えません（あなた: ${myPicks.length}/${champion.max_picks}口）`;
   }
 
+  const pickersOf = (teamId) =>
+    (champion.picks || []).filter((p) => p.team_id === teamId).map((p) => p.name);
+
   grid.innerHTML = myTeams.map((t) => {
-    const picked = champion.my_pick === t.id;
+    const picked = myPicks.includes(t.id);
     const cls = ['future-btn'];
     if (picked) cls.push('picked');
     if (champion.champion_team_id === t.id) cls.push('champion');
-    const stakeTag = picked && champion.my_stake != null
-      ? `<span class="stake-tag">${champion.my_stake}pt</span>` : '';
+    const stakeTag = picked ? `<span class="stake-tag">${champion.unit}pt</span>` : '';
+    const names = champion.picks ? pickersOf(t.id) : [];
+    const nameTag = names.length
+      ? `<span class="pick-names">${esc(names.join('・'))}</span>` : '';
     return `<button class="${cls.join(' ')}" data-team="${t.id}" ${champion.locked ? 'disabled' : ''}>
       <span>${esc(t.name)}<span class="team-pref"> ${esc(t.prefecture)}</span>${stakeTag}</span>
-      <span class="odds-chip">${oddsText(champion.odds[t.id])}</span>
+      ${nameTag}
     </button>`;
   }).join('');
 
@@ -383,12 +384,19 @@ function renderFutures() {
       if (!state.data.me || state.data.me.user_id == null) {
         return toast('右上からニックネームとパスワードでログインしてください', true);
       }
+      const teamId = Number(btn.dataset.team);
       try {
-        const r = await api('/api/champion', {
-          tournament_id: state.tournamentId, team_id: Number(btn.dataset.team),
-        });
-        await load();
-        toast(`優勝予想にベットしました（${r.cost}pt）`);
+        if (myPicks.includes(teamId)) {
+          await api('/api/champion/cancel', { tournament_id: state.tournamentId, team_id: teamId });
+          await load();
+          toast(`この口を取り消しました（${champion.unit.toLocaleString()}pt返却）`);
+        } else {
+          const r = await api('/api/champion', {
+            tournament_id: state.tournamentId, team_id: teamId,
+          });
+          await load();
+          toast(`優勝ベットしました（${r.cost.toLocaleString()}pt）`);
+        }
       } catch (e) { toast(e.message, true); }
     });
   });
@@ -401,16 +409,13 @@ function renderAiAnalysis(champion) {
   if (!rows?.length) { panel.hidden = true; return; }
   panel.hidden = false;
   $('#ai-analysis-body').innerHTML = rows
-    .slice().sort((a, b) => b.ev - a.ev)
     .map((a) => {
       const t = state.data.teams.find((x) => x.id === a.team_id);
-      const evCls = a.ev > 0 ? 'profit-plus' : a.ev < 0 ? 'profit-minus' : '';
       return `<div class="ai-row">
         <div class="ai-row-head">
           <b>${esc(t?.name ?? '?')}</b><span class="team-pref">${esc(t?.prefecture ?? '')}</span>
           <span class="ai-stat">優勝確率 ${a.probability}%</span>
-          <span class="ai-stat">オッズ ${a.odds == null ? '—' : a.odds.toFixed(2)}</span>
-          <span class="ai-stat ${evCls}">理論値 ${a.ev > 0 ? '+' : ''}${a.ev}pt</span>
+          ${a.reach ? `<span class="ai-stat">予想到達 ${esc(a.reach)}</span>` : ''}
         </div>
         <div class="ai-row-body"><b>理由:</b> ${esc(a.reason)}${a.hypothesis ? `<br><b>仮説:</b> ${esc(a.hypothesis)}` : ''}</div>
       </div>`;
@@ -443,6 +448,10 @@ function renderRanking() {
 function renderAdmin() {
   $('#admin-status').textContent =
     (state.adminToken || state.data.me?.admin) ? '✔ 管理者ログイン中' : '';
+  const champ = state.data.champions.find((c) => c.tournament_id === state.tournamentId);
+  $('#champ-open-status').textContent = champ
+    ? (champ.picks_open ? '現在: 公開済み（締切中）' : '現在: クローズド（受付中）')
+    : '';
   const { matches, teams, tournaments } = state.data;
   const tName = (id) => tournaments.find((t) => t.id === id)?.name ?? '?';
   const matchLabel = (m) =>
@@ -533,6 +542,18 @@ $('#relief-btn').addEventListener('click', async () => {
     toast('救済チップ +100pt を受け取りました');
   } catch (e) { toast(e.message, true); }
 });
+
+async function setChampOpen(open) {
+  try {
+    await adminApi('/api/admin/champion-open', { tournament_id: state.tournamentId, open });
+    await load();
+    toast(open ? '予想を公開しました（ベット締切）' : '予想を非公開に戻しました');
+  } catch (e) { toast(e.message, true); }
+}
+$('#champ-open-btn').addEventListener('click', () => {
+  if (confirm('全員のピックを公開し、ベットを締め切ります。よろしいですか？')) setChampOpen(true);
+});
+$('#champ-close-btn').addEventListener('click', () => setChampOpen(false));
 
 $('#chat-send').addEventListener('click', sendChat);
 $('#chat-input').addEventListener('keydown', (e) => {

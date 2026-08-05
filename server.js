@@ -10,10 +10,10 @@ const PORT = 3310;
 const MULT_MIN = 1.0;
 const MULT_MAX = 3.0;          // 試合オッズの上限
 const CHAMPION_MULT_MAX = 5.0; // 優勝オッズの上限
-const START_BALANCE = 1000;    // 初期持ち点
-const MIN_STAKE = 10;          // 試合ベットの下限（上限なし・持ち点の範囲内）
-const CHAMPION_BASE = 100;     // 優勝ベットの原則額（払戻はこの額 × オッズ）
-const CHAMPION_LATE_FEE = 100; // レイト参加費: 1ラウンド消化ごとの参加コスト増分
+const START_BALANCE = 10000;   // 初期持ち点
+const MIN_STAKE = 10;          // 試合ベットの下限（試合ベット休止中は未使用）
+const POT_UNIT = 5000;         // 優勝ベット1口の額（ポット制。2口で全額勝負）
+const MAX_PICKS = 2;           // 1人あたりの最大口数（別々の学校）
 const RELIEF_AMOUNT = 100;     // 救済チップ
 const EXTRA_REFUND_RATE = 0.5; // 延長決着: 勝者側ベットの半金返還率（敗者側・同点扱い分は没収）
 const MATCH_BETTING = false;   // 2026夏は優勝予想のみ（1対1の試合ベットは休止。機能は次回用に温存）
@@ -121,9 +121,9 @@ CREATE TABLE IF NOT EXISTS champion_picks (
   user_id INTEGER NOT NULL REFERENCES users(id),
   tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
   team_id INTEGER NOT NULL REFERENCES teams(id),
-  stake INTEGER NOT NULL,            -- 支払った参加コスト（原則100＋レイト参加費）
+  stake INTEGER NOT NULL,            -- 1口の額（ポット制: 100固定）
   picked_at TEXT NOT NULL,
-  PRIMARY KEY (user_id, tournament_id)
+  PRIMARY KEY (user_id, tournament_id, team_id)
 );
 CREATE TABLE IF NOT EXISTS ai_predictions (
   match_id INTEGER PRIMARY KEY REFERENCES matches(id),
@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS ai_champion (
   tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
   team_id INTEGER NOT NULL REFERENCES teams(id),
   probability INTEGER NOT NULL,      -- AIの優勝確率 1〜99 (%)
+  reach TEXT,                        -- 予想到達段階（優勝/決勝/ベスト4/ベスト8/3回戦 など）
   reason TEXT NOT NULL,              -- 理由（評価の根拠）
   hypothesis TEXT,                   -- 仮説（成立すれば上振れる条件）
   updated_at TEXT NOT NULL,
@@ -158,6 +159,32 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   const matchCols2 = db.prepare('PRAGMA table_info(matches)').all();
   if (matchCols2.length && !matchCols2.some((c) => c.name === 'extra_innings')) {
     db.exec('ALTER TABLE matches ADD COLUMN extra_innings INTEGER NOT NULL DEFAULT 0');
+  }
+  const tournCols = db.prepare('PRAGMA table_info(tournaments)').all();
+  if (tournCols.length && !tournCols.some((c) => c.name === 'picks_open')) {
+    db.exec('ALTER TABLE tournaments ADD COLUMN picks_open INTEGER NOT NULL DEFAULT 0');
+  }
+  const aiCols = db.prepare('PRAGMA table_info(ai_champion)').all();
+  if (aiCols.length && !aiCols.some((c) => c.name === 'reach')) {
+    db.exec('ALTER TABLE ai_champion ADD COLUMN reach TEXT');
+  }
+  // 優勝ベットv2: 1人2口対応のため PK を (user_id, tournament_id, team_id) に拡張
+  const cpCols = db.prepare('PRAGMA table_info(champion_picks)').all();
+  if (cpCols.length && !(cpCols.find((c) => c.name === 'team_id')?.pk > 0)) {
+    db.exec(`
+      CREATE TABLE champion_picks_v2 (
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
+        team_id INTEGER NOT NULL REFERENCES teams(id),
+        stake INTEGER NOT NULL,
+        picked_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, tournament_id, team_id)
+      );
+      INSERT INTO champion_picks_v2 SELECT user_id, tournament_id, team_id, stake, picked_at FROM champion_picks;
+      DROP TABLE champion_picks;
+      ALTER TABLE champion_picks_v2 RENAME TO champion_picks;
+    `);
+    console.log('champion_picks を2口対応スキーマへ移行しました');
   }
 }
 
@@ -291,28 +318,19 @@ function distributionOf(matchId, team1Id, team2Id) {
     pool === 0 ? null : Math.round(clamp(total / pool, MULT_MIN, MULT_MAX) * 100) / 100;
   return { p1, p2, c1: r1?.c ?? 0, c2: r2?.c ?? 0, total, mult1: multOf(p1), mult2: multOf(p2) };
 }
-// 大会ごとの優勝予想の分布とオッズ（原則額は全員同じなので人数比）
-function championDistribution(tournamentId) {
-  const rows = db.prepare(
-    `SELECT team_id, COUNT(*) AS c FROM champion_picks
-     WHERE tournament_id = ? GROUP BY team_id`
+// 各チームの到達段階を数値化（優勝=99、それ以外は敗退したラウンド。数値が大きいほど上）
+// 勝ち残り中のチームは「勝った最大ラウンド+0.5」で暫定評価（清算は優勝確定後なので通常は敗退値が確定している）
+function teamReachMap(tournamentId) {
+  const reach = new Map();
+  const ms = db.prepare(
+    "SELECT * FROM matches WHERE tournament_id = ? AND status = 'finished'"
   ).all(tournamentId);
-  const total = rows.reduce((s, r) => s + r.c, 0);
-  const odds = {};
-  for (const r of rows) {
-    odds[r.team_id] = Math.round(clamp(total / r.c, MULT_MIN, CHAMPION_MULT_MAX) * 100) / 100;
+  for (const m of ms) {
+    const loser = m.winner_id === m.team1_id ? m.team2_id : m.team1_id;
+    reach.set(loser, Math.max(reach.get(loser) ?? 0, m.round));
+    reach.set(m.winner_id, Math.max(reach.get(m.winner_id) ?? 0, m.round + 0.5));
   }
-  return { total, odds };
-}
-// 消化済みラウンド数（結果が1つ以上確定しているラウンドの数）
-function progressedRounds(tournamentId) {
-  return db.prepare(
-    "SELECT COUNT(DISTINCT round) AS c FROM matches WHERE tournament_id = ? AND status = 'finished'"
-  ).get(tournamentId).c;
-}
-// 優勝ベットの現在の参加コスト。レイト参加ほど高い（払戻は原則額 × オッズのままなので実質オッズが下がる）
-function championCostNow(tournamentId) {
-  return CHAMPION_BASE + CHAMPION_LATE_FEE * progressedRounds(tournamentId);
+  return reach;
 }
 // 大会の優勝校 = 最終ラウンド（決勝）の勝者
 function championTeamId(tournament) {
@@ -383,23 +401,40 @@ function computeStats() {
     }
   }
 
-  for (const p of db.prepare('SELECT * FROM champion_picks').all()) {
-    const s = stats.get(p.user_id);
-    const t = tMap.get(p.tournament_id);
-    if (!s || !t) continue;
-    s.champion_total++;
-    s.balance -= p.stake;
+  // 優勝予想（ポット制）: 大会決着時、最も勝ち進んだ学校を持つ人がポット総どり（同着は均等割・端数切捨）
+  const allChampPicks = db.prepare('SELECT * FROM champion_picks').all();
+  for (const t of tournaments) {
+    const picks = allChampPicks.filter((p) => p.tournament_id === t.id);
+    if (!picks.length) continue;
+    for (const p of picks) {
+      const s = stats.get(p.user_id);
+      if (!s) continue;
+      s.champion_total++;
+      s.balance -= p.stake;
+    }
     const champId = championTeamId(t);
     if (champId == null) continue; // 大会未決着 → ステークは in play のまま
-    const mult = championDistribution(t.id).odds[champId] ?? null;
-    if (p.team_id === champId && mult != null) {
-      // 払戻は原則額ベース。レイト参加費（stake − 原則額）は返ってこない
-      const payout = Math.round(CHAMPION_BASE * mult);
-      s.champion_hits++;
-      s.balance += payout;
-      s.profit += payout - p.stake;
-    } else {
-      s.profit -= p.stake;
+    const reach = teamReachMap(t.id);
+    const pot = picks.reduce((sum, p) => sum + p.stake, 0);
+    const bestOf = new Map(); // user_id → 最良到達値
+    for (const p of picks) {
+      const v = p.team_id === champId ? 99 : (reach.get(p.team_id) ?? 0);
+      if (p.team_id === champId) stats.get(p.user_id) && stats.get(p.user_id).champion_hits++;
+      bestOf.set(p.user_id, Math.max(bestOf.get(p.user_id) ?? -1, v));
+    }
+    const top = Math.max(...bestOf.values());
+    const winners = [...bestOf.entries()].filter(([, v]) => v === top).map(([u]) => u);
+    const share = Math.floor(pot / winners.length);
+    for (const [uid] of bestOf) {
+      const s = stats.get(uid);
+      if (!s) continue;
+      const own = picks.filter((p) => p.user_id === uid).reduce((sum, p) => sum + p.stake, 0);
+      if (winners.includes(uid)) {
+        s.balance += share;
+        s.profit += share - own;
+      } else {
+        s.profit -= own;
+      }
     }
   }
   return stats;
@@ -516,39 +551,32 @@ app.get('/api/bootstrap', (req, res) => {
   const champions = tournaments.map((t) => {
     const lockAt = championLockAt(t);
     const champId = championTeamId(t);
-    const mine = userId
-      ? db.prepare('SELECT team_id, stake FROM champion_picks WHERE user_id = ? AND tournament_id = ?')
-          .get(userId, t.id)
+    const open = !!t.picks_open;
+    const allPicks = db.prepare(`
+      SELECT cp.user_id, cp.team_id, u.name FROM champion_picks cp
+      JOIN users u ON u.id = cp.user_id WHERE cp.tournament_id = ?
+      ORDER BY cp.picked_at
+    `).all(t.id);
+    const canSeeAll = open || isAdmin; // クローズド期間は管理者以外に他人のピック・ポットを見せない
+    // AI分析（管理者のみ）: 純粋な勝ち残り予測（優勝確率・予想到達・理由・仮説）。優勝に近い順
+    const aiAnalysis = isAdmin
+      ? db.prepare('SELECT * FROM ai_champion WHERE tournament_id = ? ORDER BY probability DESC')
+          .all(t.id).map((a) => ({
+            team_id: a.team_id, probability: a.probability, reach: a.reach,
+            reason: a.reason, hypothesis: a.hypothesis,
+          }))
       : null;
-    // AI分析（管理者のみ）: 理論値 = 確率 × 想定払戻(100×現在オッズ、未ベット校はオッズ上限で仮置き) − 参加コスト
-    let aiAnalysis = null;
-    if (isAdmin) {
-      const dist = championDistribution(t.id);
-      const cost = championCostNow(t.id);
-      aiAnalysis = db.prepare(
-        'SELECT * FROM ai_champion WHERE tournament_id = ? ORDER BY probability DESC'
-      ).all(t.id).map((a) => {
-        const odds = dist.odds[a.team_id] ?? null;
-        const assumed = odds ?? CHAMPION_MULT_MAX;
-        return {
-          team_id: a.team_id, probability: a.probability,
-          reason: a.reason, hypothesis: a.hypothesis,
-          odds,
-          ev: Math.round((a.probability / 100) * CHAMPION_BASE * assumed - cost),
-        };
-      });
-    }
     return {
       tournament_id: t.id,
+      picks_open: open,
       lock_at: lockAt ? lockAt.toISOString() : null,
-      locked: (lockAt ? now >= lockAt : false) || champId != null,
+      locked: open || champId != null || (lockAt ? now >= lockAt : false),
       champion_team_id: champId,
-      my_pick: mine?.team_id ?? null,
-      my_stake: mine?.stake ?? null,
-      base: CHAMPION_BASE,
-      current_cost: championCostNow(t.id),
-      mult_max: CHAMPION_MULT_MAX,
-      odds: championDistribution(t.id).odds,
+      unit: POT_UNIT,
+      max_picks: MAX_PICKS,
+      my_picks: userId ? allPicks.filter((p) => p.user_id === userId).map((p) => p.team_id) : [],
+      pot: canSeeAll ? allPicks.length * POT_UNIT : null,
+      picks: canSeeAll ? allPicks.map((p) => ({ name: p.name, team_id: p.team_id })) : null,
       ai_analysis: aiAnalysis,
     };
   });
@@ -702,32 +730,39 @@ app.post('/api/champion', (req, res) => {
   if (!db.prepare('SELECT id FROM users WHERE id = ?').get(user_id)) {
     return res.status(404).json({ error: 'ユーザーが見つかりません' });
   }
-  // 参加コストはサーバ側で決定（原則100＋レイト参加費）。張り替えは旧コスト返却→現在コストで再徴収
-  const cost = championCostNow(tournament_id);
-  const existing = db.prepare(
-    'SELECT stake FROM champion_picks WHERE user_id = ? AND tournament_id = ?'
-  ).get(user_id, tournament_id);
-  const available = balanceOf(user_id) + (existing?.stake ?? 0);
-  if (cost > available) {
-    return res.status(400).json({ error: `持ち点が足りません（参加コスト ${cost}pt / 利用可能 ${available}pt）` });
+  if (tournament.picks_open) {
+    return res.status(400).json({ error: '予想は公開済みのため締め切りました' });
+  }
+  const myPicks = db.prepare(
+    'SELECT team_id FROM champion_picks WHERE user_id = ? AND tournament_id = ?'
+  ).all(user_id, tournament_id);
+  if (myPicks.some((p) => p.team_id === team_id)) {
+    return res.status(400).json({ error: 'この学校には既にベット済みです' });
+  }
+  if (myPicks.length >= MAX_PICKS) {
+    return res.status(400).json({ error: `優勝ベットは1人${MAX_PICKS}口までです` });
+  }
+  if (balanceOf(user_id) < POT_UNIT) {
+    return res.status(400).json({ error: `持ち点が足りません（1口 ${POT_UNIT}pt）` });
   }
 
   db.prepare(`INSERT INTO champion_picks (user_id, tournament_id, team_id, stake, picked_at)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(user_id, tournament_id) DO UPDATE SET team_id = excluded.team_id,
-      stake = excluded.stake, picked_at = excluded.picked_at`)
-    .run(user_id, tournament_id, team_id, cost, new Date().toISOString());
+    VALUES (?, ?, ?, ?, ?)`)
+    .run(user_id, tournament_id, team_id, POT_UNIT, new Date().toISOString());
   broadcast();
-  res.json({ ok: true, cost });
+  res.json({ ok: true, cost: POT_UNIT });
 });
 
-// 優勝ベットの取消（決勝開始前のみ・支払ったコストを全額返却）
+// 優勝ベットの取消（公開前のみ・口単位で全額返却）
 app.post('/api/champion/cancel', (req, res) => {
   const user_id = actorUserId(req, res);
   if (user_id == null) return;
-  const { tournament_id } = req.body;
+  const { tournament_id, team_id } = req.body;
   const tournament = db.prepare('SELECT * FROM tournaments WHERE id = ?').get(tournament_id);
   if (!tournament) return res.status(404).json({ error: '大会が見つかりません' });
+  if (tournament.picks_open) {
+    return res.status(400).json({ error: '予想は公開済みのため取消できません' });
+  }
   if (championTeamId(tournament) != null) {
     return res.status(400).json({ error: 'この大会は決着済みのため取消できません' });
   }
@@ -735,11 +770,25 @@ app.post('/api/champion/cancel', (req, res) => {
   if (lockAt && new Date() >= lockAt) {
     return res.status(400).json({ error: '決勝開始後は取消できません' });
   }
-  const del = db.prepare('DELETE FROM champion_picks WHERE user_id = ? AND tournament_id = ?')
-    .run(user_id, tournament_id);
-  if (!del.changes) return res.status(404).json({ error: '優勝ベットが見つかりません' });
+  const del = db.prepare(
+    'DELETE FROM champion_picks WHERE user_id = ? AND tournament_id = ? AND team_id = ?'
+  ).run(user_id, tournament_id, team_id);
+  if (!del.changes) return res.status(404).json({ error: 'この学校への優勝ベットが見つかりません' });
   broadcast();
   res.json({ ok: true });
+});
+
+// 予想の公開/非公開（管理者の合図）。公開＝全ピックオープン＆ベット締切
+app.post('/api/admin/champion-open', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const { tournament_id, open } = req.body;
+  if (!db.prepare('SELECT id FROM tournaments WHERE id = ?').get(tournament_id)) {
+    return res.status(404).json({ error: '大会が見つかりません' });
+  }
+  db.prepare('UPDATE tournaments SET picks_open = ? WHERE id = ?')
+    .run(open ? 1 : 0, tournament_id);
+  broadcast();
+  res.json({ ok: true, picks_open: !!open });
 });
 
 // ベット取消（締切前のみ・全額返却）
@@ -851,10 +900,10 @@ app.post('/api/admin/ai', (req, res) => {
   res.json({ ok: true });
 });
 
-// 優勝AI分析の登録（管理者のみ閲覧。確率・理由・仮説）
+// 優勝AI分析の登録（管理者のみ閲覧。優勝確率・予想到達・理由・仮説）
 app.post('/api/admin/ai-champion', (req, res) => {
   if (!requireAdmin(req, res)) return;
-  const { tournament_id, team_id, probability, reason, hypothesis } = req.body;
+  const { tournament_id, team_id, probability, reach, reason, hypothesis } = req.body;
   if (!db.prepare('SELECT id FROM tournaments WHERE id = ?').get(tournament_id)) {
     return res.status(404).json({ error: '大会が見つかりません' });
   }
@@ -867,12 +916,13 @@ app.post('/api/admin/ai-champion', (req, res) => {
     return res.status(400).json({ error: '確率は1〜99の整数で指定してください' });
   }
   if (!String(reason || '').trim()) return res.status(400).json({ error: '理由を入力してください' });
-  db.prepare(`INSERT INTO ai_champion (tournament_id, team_id, probability, reason, hypothesis, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+  db.prepare(`INSERT INTO ai_champion (tournament_id, team_id, probability, reach, reason, hypothesis, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(tournament_id, team_id) DO UPDATE SET probability = excluded.probability,
-      reason = excluded.reason, hypothesis = excluded.hypothesis, updated_at = excluded.updated_at`)
-    .run(tournament_id, team_id, p, String(reason).trim(), String(hypothesis || '').trim() || null,
-      new Date().toISOString());
+      reach = excluded.reach, reason = excluded.reason, hypothesis = excluded.hypothesis,
+      updated_at = excluded.updated_at`)
+    .run(tournament_id, team_id, p, String(reach || '').trim() || null, String(reason).trim(),
+      String(hypothesis || '').trim() || null, new Date().toISOString());
   broadcast();
   res.json({ ok: true });
 });

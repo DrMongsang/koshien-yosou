@@ -69,13 +69,24 @@ const fmtTime = (iso) => (iso ? iso.slice(11, 16) : '');
 
   const championHtml = boot.champions.map((c) => {
     const t = tournOf(c.tournament_id);
-    const withOdds = boot.teams
-      .filter((x) => x.tournament_id === c.tournament_id && c.odds[x.id] != null)
-      .sort((a, b) => c.odds[a.id] - c.odds[b.id]);
-    const rows = withOdds.length
-      ? withOdds.map((x) => `<div class="future-btn"><span>${esc(x.name)}<span class="team-pref"> ${esc(x.prefecture)}</span></span><span class="odds-chip">${oddsText(c.odds[x.id])}</span></div>`).join('')
-      : '<p class="hint">優勝ベットはまだありません</p>';
-    return `<h3>${esc(t?.name ?? '')}（参加コスト ${c.current_cost}pt）</h3><div class="futures-grid">${rows}</div>`;
+    let rows;
+    if (!c.picks) {
+      rows = '<p class="hint">クローズド期間中 — 全員の予想が出揃って公開されるまで、ピックは非公開です。</p>';
+    } else if (!c.picks.length) {
+      rows = '<p class="hint">優勝ベットはまだありません</p>';
+    } else {
+      const byTeam = new Map();
+      for (const p of c.picks) {
+        if (!byTeam.has(p.team_id)) byTeam.set(p.team_id, []);
+        byTeam.get(p.team_id).push(p.name);
+      }
+      rows = '<div class="futures-grid">' + [...byTeam.entries()].map(([teamId, names]) => {
+        const x = boot.teams.find((tt) => tt.id === teamId);
+        return `<div class="future-btn"><span>${esc(x?.name ?? '?')}<span class="team-pref"> ${esc(x?.prefecture ?? '')}</span></span><span class="pick-names">${esc(names.join('・'))}</span></div>`;
+      }).join('') + '</div>';
+    }
+    const potTag = c.pot != null ? `（ポット ${c.pot}pt）` : '';
+    return `<h3>${esc(t?.name ?? '')} 優勝予想${potTag}</h3>${rows}`;
   }).join('');
 
   // トーナメント表（甲子園。ラウンド列形式）
@@ -137,9 +148,9 @@ const fmtTime = (iso) => (iso ? iso.slice(11, 16) : '');
   <div class="userbox hint">生成: ${new Date().toLocaleString('ja-JP')}（読み取り専用スナップショット）</div>
 </header>
 <main style="max-width:860px;margin:0 auto;padding:16px;">
-<p class="hint">今大会のゲームは<b>優勝予想のみ</b>です。オッズは参加者の優勝予想の分布（人数比）で変動します。</p>
+<p class="hint">今大会のゲームは<b>優勝予想（ポット制）のみ</b>。持ち点10,000pt・1口5,000pt・1人2口まで。全員の予想が出揃うまでピックは非公開で、公開後は変更不可。大会終了時に最も勝ち進んだ学校を持っていた人がポットを総どり（同着は山分け）します。</p>
 ${bracketHtml}
-<h2>優勝オッズ</h2>
+<h2>優勝予想</h2>
 ${championHtml}
 <h2>ランキング（確定収支順）</h2>
 <table class="rank-table">

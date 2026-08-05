@@ -17,10 +17,10 @@
     <span class="brand-badge">ポイント制・賭博なし</span>
   </div>
   <div class="userbox" id="login-box">
-    <input id="login-name" type="text" placeholder="ニックネーム" maxlength="20">
-    <input id="login-pass" type="password" placeholder="パスワード" maxlength="30">
-    <button id="login-btn" class="btn small">ログイン</button>
+    <input id="login-name" type="text" placeholder="なまえ" maxlength="20">
+    <input id="login-pass" type="password" placeholder="パスワード（好きなもの）" maxlength="30">
     <button id="signup-btn" class="btn small signup">新規参加</button>
+    <button id="login-btn" class="btn small">ログイン</button>
   </div>
   <div class="userbox" id="me-box" hidden>
     <span id="me-name" class="me-name"></span>
@@ -37,9 +37,11 @@
   <button class="tab" data-tab="admin">管理</button>
 </nav>
 
+<div id="login-hint" class="login-hint">はじめての人は「なまえ＋好きなパスワード」で<b>新規参加</b>。2回目からは同じなまえとパスワードで<b>ログイン</b>してね。</div>
+
 <div class="betbar">
   <span id="balance-chip" class="balance-chip">持ち点 —</span>
-  <span class="betbar-label">今大会のゲームは「優勝予想」のみ（優勝予想タブからベット）</span>
+  <span class="betbar-label">持ち点10,000pt・優勝予想 1口5,000pt（2口まで）</span>
   <button id="relief-btn" class="btn small relief" hidden>救済チップ +100</button>
 </div>
 
@@ -47,13 +49,13 @@
   <section id="tab-futures" class="tab-panel active">
     <div class="futures-head">
       <h2>優勝校を選んでベット</h2>
-      <p class="hint">優勝すると思う学校を<b>1校タップするだけ</b>。1ベット原則100pt・決勝開始まで変更自由。的中で <b>100pt × オッズ（上限5.0倍）</b>。オッズはみんなの予想の分布で変動します。開幕後は1ラウンド消化ごとに参加コストが+100pt（現在: <b><span id="futures-cost">100</span>pt</b>。増額分は払戻対象外）。</p>
+      <p class="hint">優勝すると思う学校をタップ（<b>1口5,000pt・1人2口まで</b>、別々の学校）。自分の口はもう一度タップで取消。<b>全員の予想が出揃うまでお互いのピックは非公開</b>で、管理者の「公開」後は変更できません。大会終了時、<b>最も勝ち進んだ学校を持っていた人がポット（全口の合計）を総どり</b>。同着は山分け（端数切捨）です。</p>
       <p id="futures-status" class="futures-status"></p>
     </div>
     <div id="futures-grid" class="futures-grid"></div>
     <div id="ai-analysis" class="ai-analysis" hidden>
       <h3>🤖 AI分析（管理者のみ表示）</h3>
-      <p class="hint">理論値 = AI優勝確率 × 想定払戻（100pt × 現在オッズ。ベットが無い学校は上限5.0倍で仮置き）− 参加コスト。プラスなら現在オッズは割安の読み。自分のベットによるオッズ変動（重複影響）は考慮しない。</p>
+      <p class="hint">AIによる純粋な勝ち残り予測。優勝確率が高い順（＝優勝に近い順）に、予想到達段階・理由・仮説を表示します。</p>
       <div id="ai-analysis-body"></div>
     </div>
   </section>
@@ -99,6 +101,16 @@
       </div>
       <p class="hint">パスワードは server フォルダの config.json で変更できます。</p>
     </div>
+    <div class="admin-card">
+      <h3>優勝予想の公開（合図）</h3>
+      <div class="form-row">
+        <button id="champ-open-btn" class="btn">予想を公開する（＝締切）</button>
+        <button id="champ-close-btn" class="btn void">非公開に戻す</button>
+        <span id="champ-open-status" class="hint"></span>
+      </div>
+      <p class="hint">全員の予想が出揃ったら「公開」。全ピックがオープンになり、新規・変更・取消がロックされます。</p>
+    </div>
+
     <div class="admin-card">
       <h3>試合結果の入力</h3>
       <div class="form-row">
