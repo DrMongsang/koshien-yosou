@@ -330,6 +330,25 @@ h3 { color: var(--navy); font-size: 14px; margin: 12px 0 8px; font-weight: 800; 
 .chat-msg .chat-body { display: block; font-size: 14px; color: var(--navy-deep); }
 .chat-input-row input { flex: 1; }
 
+/* AI分析（管理者のみ） */
+.ai-analysis {
+  margin-top: 18px; background: var(--panel); border: 3px solid var(--navy);
+  border-radius: 14px; padding: 14px; box-shadow: 0 4px 0 var(--shadow);
+}
+.ai-analysis h3 { color: var(--navy); margin-bottom: 6px; }
+.ai-row {
+  border-top: 1px dashed var(--muted); padding: 10px 2px;
+}
+.ai-row-head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  color: var(--navy-deep); margin-bottom: 4px;
+}
+.ai-stat {
+  background: var(--panel-soft); border-radius: 8px; padding: 2px 8px;
+  font-size: 12px; font-weight: 800; color: var(--navy);
+}
+.ai-row-body { font-size: 12px; color: var(--muted); line-height: 1.7; }
+
 /* 優勝ベットの取消 */
 .futures-cancel {
   background: var(--panel); border: 2px solid var(--red); color: var(--red);

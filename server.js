@@ -132,6 +132,15 @@ CREATE TABLE IF NOT EXISTS ai_predictions (
   comment TEXT,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS ai_champion (
+  tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
+  team_id INTEGER NOT NULL REFERENCES teams(id),
+  probability INTEGER NOT NULL,      -- AIの優勝確率 1〜99 (%)
+  reason TEXT NOT NULL,              -- 理由（評価の根拠）
+  hypothesis TEXT,                   -- 仮説（成立すれば上振れる条件）
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (tournament_id, team_id)
+);
 CREATE TABLE IF NOT EXISTS chat_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER REFERENCES users(id),  -- NULL = 管理者の書き込み
@@ -511,6 +520,24 @@ app.get('/api/bootstrap', (req, res) => {
       ? db.prepare('SELECT team_id, stake FROM champion_picks WHERE user_id = ? AND tournament_id = ?')
           .get(userId, t.id)
       : null;
+    // AI分析（管理者のみ）: 理論値 = 確率 × 想定払戻(100×現在オッズ、未ベット校はオッズ上限で仮置き) − 参加コスト
+    let aiAnalysis = null;
+    if (isAdmin) {
+      const dist = championDistribution(t.id);
+      const cost = championCostNow(t.id);
+      aiAnalysis = db.prepare(
+        'SELECT * FROM ai_champion WHERE tournament_id = ? ORDER BY probability DESC'
+      ).all(t.id).map((a) => {
+        const odds = dist.odds[a.team_id] ?? null;
+        const assumed = odds ?? CHAMPION_MULT_MAX;
+        return {
+          team_id: a.team_id, probability: a.probability,
+          reason: a.reason, hypothesis: a.hypothesis,
+          odds,
+          ev: Math.round((a.probability / 100) * CHAMPION_BASE * assumed - cost),
+        };
+      });
+    }
     return {
       tournament_id: t.id,
       lock_at: lockAt ? lockAt.toISOString() : null,
@@ -522,6 +549,7 @@ app.get('/api/bootstrap', (req, res) => {
       current_cost: championCostNow(t.id),
       mult_max: CHAMPION_MULT_MAX,
       odds: championDistribution(t.id).odds,
+      ai_analysis: aiAnalysis,
     };
   });
 
@@ -819,6 +847,32 @@ app.post('/api/admin/ai', (req, res) => {
     ON CONFLICT(match_id) DO UPDATE SET team_id = excluded.team_id,
       confidence = excluded.confidence, comment = excluded.comment, updated_at = excluded.updated_at`)
     .run(match_id, team_id, conf, comment || null, new Date().toISOString());
+  broadcast();
+  res.json({ ok: true });
+});
+
+// 優勝AI分析の登録（管理者のみ閲覧。確率・理由・仮説）
+app.post('/api/admin/ai-champion', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const { tournament_id, team_id, probability, reason, hypothesis } = req.body;
+  if (!db.prepare('SELECT id FROM tournaments WHERE id = ?').get(tournament_id)) {
+    return res.status(404).json({ error: '大会が見つかりません' });
+  }
+  const team = db.prepare('SELECT tournament_id FROM teams WHERE id = ?').get(team_id);
+  if (!team || team.tournament_id !== tournament_id) {
+    return res.status(400).json({ error: 'この大会に出場していない学校です' });
+  }
+  const p = Number(probability);
+  if (!Number.isInteger(p) || p < 1 || p > 99) {
+    return res.status(400).json({ error: '確率は1〜99の整数で指定してください' });
+  }
+  if (!String(reason || '').trim()) return res.status(400).json({ error: '理由を入力してください' });
+  db.prepare(`INSERT INTO ai_champion (tournament_id, team_id, probability, reason, hypothesis, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(tournament_id, team_id) DO UPDATE SET probability = excluded.probability,
+      reason = excluded.reason, hypothesis = excluded.hypothesis, updated_at = excluded.updated_at`)
+    .run(tournament_id, team_id, p, String(reason).trim(), String(hypothesis || '').trim() || null,
+      new Date().toISOString());
   broadcast();
   res.json({ ok: true });
 });

@@ -376,6 +376,8 @@ function renderFutures() {
     </button>`;
   }).join('');
 
+  renderAiAnalysis(champion);
+
   grid.querySelectorAll('.future-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       if (!state.data.me || state.data.me.user_id == null) {
@@ -390,6 +392,29 @@ function renderFutures() {
       } catch (e) { toast(e.message, true); }
     });
   });
+}
+
+// AI分析パネル（サーバが管理者にだけ ai_analysis を返す。理論値EV降順で表示）
+function renderAiAnalysis(champion) {
+  const panel = $('#ai-analysis');
+  const rows = champion?.ai_analysis;
+  if (!rows?.length) { panel.hidden = true; return; }
+  panel.hidden = false;
+  $('#ai-analysis-body').innerHTML = rows
+    .slice().sort((a, b) => b.ev - a.ev)
+    .map((a) => {
+      const t = state.data.teams.find((x) => x.id === a.team_id);
+      const evCls = a.ev > 0 ? 'profit-plus' : a.ev < 0 ? 'profit-minus' : '';
+      return `<div class="ai-row">
+        <div class="ai-row-head">
+          <b>${esc(t?.name ?? '?')}</b><span class="team-pref">${esc(t?.prefecture ?? '')}</span>
+          <span class="ai-stat">優勝確率 ${a.probability}%</span>
+          <span class="ai-stat">オッズ ${a.odds == null ? '—' : a.odds.toFixed(2)}</span>
+          <span class="ai-stat ${evCls}">理論値 ${a.ev > 0 ? '+' : ''}${a.ev}pt</span>
+        </div>
+        <div class="ai-row-body"><b>理由:</b> ${esc(a.reason)}${a.hypothesis ? `<br><b>仮説:</b> ${esc(a.hypothesis)}` : ''}</div>
+      </div>`;
+    }).join('');
 }
 
 // ---- ランキング ----------------------------------------------------------------
