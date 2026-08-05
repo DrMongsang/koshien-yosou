@@ -9,6 +9,8 @@
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet">
 <style>/* パワプロ風UI（明るい空色・白パネル・太縁取り・黄色アクセント）— 金銭要素なしのポイント制予想アプリ */
 * { margin: 0; padding: 0; box-sizing: border-box; }
+/* display 指定のある要素でも hidden 属性を必ず効かせる（ログイン欄の出しっぱなし防止） */
+[hidden] { display: none !important; }
 :root {
   --sky-top: #6ed0ff;
   --sky-bottom: #2e8fe8;
@@ -385,6 +387,7 @@ h3 { color: var(--navy); font-size: 14px; margin: 12px 0 8px; font-weight: 800; 
   .pick-row { flex-direction: column; }
   .topbar { flex-direction: column; align-items: stretch; }
 }
+/* deploy-check-20260805 */
 </style>
 </head>
 <body>
@@ -394,7 +397,7 @@ h3 { color: var(--navy); font-size: 14px; margin: 12px 0 8px; font-weight: 800; 
     <span class="brand-name">甲子園予想ボード</span>
     <span class="brand-badge">ポイント制・賭博なし</span>
   </div>
-  <div class="userbox hint">生成: 2026/8/5 13:19:04（読み取り専用スナップショット）</div>
+  <div class="userbox hint">生成: 2026/8/5 19:09:15（読み取り専用スナップショット）</div>
 </header>
 <main style="max-width:860px;margin:0 auto;padding:16px;">
 <p class="hint">今大会のゲームは<b>優勝予想（ポット制）のみ</b>。持ち点10,000pt・1口5,000pt・1人2口まで。全員の予想が出揃うまでピックは非公開で、公開後は変更不可。大会終了時に最も勝ち進んだ学校を持っていた人がポットを総どり（同着は山分け）します。</p>
@@ -429,8 +432,8 @@ h3 { color: var(--navy); font-size: 14px; margin: 12px 0 8px; font-weight: 800; 
 <table class="rank-table">
 <thead><tr><th>順位</th><th>ニックネーム</th><th>収支</th><th>持ち点</th><th>優勝予想</th></tr></thead>
 <tbody><tr><td><span class="rank-badge r1">1</span></td><td>たかし</td>
-          <td class="points ">0pt</td><td>0pt</td>
-          <td>0 / 2</td></tr></tbody>
+          <td class="points ">0pt</td><td>10000pt</td>
+          <td>0 / 0</td></tr></tbody>
 </table>
 <h2>今後の試合</h2><div class="day-header">8/5（水）　大会第1日</div><div class="match-card">
       <div class="match-meta"><span class="round-chip">全国大会（甲子園）｜1回戦 第1試合 17:30</span></div>

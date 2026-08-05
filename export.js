@@ -4,7 +4,12 @@
 const fs = require('fs');
 const path = require('path');
 
-const BASE = 'http://localhost:3310';
+// エクスポート元: config.json に cloud_url があればクラウド本番、なければローカル
+let BASE = 'http://localhost:3310';
+try {
+  const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8').replace(/^﻿/, ''));
+  if (cfg.cloud_url) BASE = cfg.cloud_url;
+} catch { /* config が無ければローカル */ }
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
