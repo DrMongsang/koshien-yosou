@@ -1,5 +1,7 @@
 /* パワプロ風UI（明るい空色・白パネル・太縁取り・黄色アクセント）— 金銭要素なしのポイント制予想アプリ */
 * { margin: 0; padding: 0; box-sizing: border-box; }
+/* display 指定のある要素でも hidden 属性を必ず効かせる（ログイン欄の出しっぱなし防止） */
+[hidden] { display: none !important; }
 :root {
   --sky-top: #6ed0ff;
   --sky-bottom: #2e8fe8;
