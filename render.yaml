@@ -1,0 +1,20 @@
+# Render Blueprint — 甲子園予想アプリ（無料枠）
+# データ永続化は Turso（TURSO_DATABASE_URL / TURSO_AUTH_TOKEN を環境変数で設定）
+services:
+  - type: web
+    name: koshien-yosou
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_USER
+        sync: false
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      - key: DB_PATH
+        value: /tmp/koshien-replica.db

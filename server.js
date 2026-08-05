@@ -1,12 +1,11 @@
 // 甲子園トーナメント予想アプリ — サーバ本体
 // 起動: npm start → http://localhost:3310
 const express = require('express');
-const Database = require('better-sqlite3');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 3310;
+const PORT = Number(process.env.PORT) || 3310;
 const MULT_MIN = 1.0;
 const MULT_MAX = 3.0;          // 試合オッズの上限
 const CHAMPION_MULT_MAX = 5.0; // 優勝オッズの上限
@@ -18,16 +17,22 @@ const RELIEF_AMOUNT = 100;     // 救済チップ
 const EXTRA_REFUND_RATE = 0.5; // 延長決着: 勝者側ベットの半金返還率（敗者側・同点扱い分は没収）
 const MATCH_BETTING = false;   // 2026夏は優勝予想のみ（1対1の試合ベットは休止。機能は次回用に温存）
 
-// 管理者パスワード（config.json・git管理外。初回起動時に生成されるので変更推奨）
+// 管理者設定: クラウドでは環境変数、ローカルでは config.json（git管理外）
 const CONFIG_PATH = path.join(__dirname, 'config.json');
-if (!fs.existsSync(CONFIG_PATH)) {
+let fileConfig = {};
+if (fs.existsSync(CONFIG_PATH)) {
+  // BOM 付きで保存されても読めるようにする（メモ帳・PowerShell 対策）
+  fileConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8').replace(/^﻿/, ''));
+} else if (!process.env.ADMIN_PASSWORD) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify({ admin_password: 'koshien-admin' }, null, 2));
   console.log('config.json を生成しました（管理者パスワード初期値: koshien-admin。変更推奨）');
+  fileConfig = { admin_password: 'koshien-admin' };
 }
-// BOM 付きで保存されても読めるようにする（メモ帳・PowerShell 対策）
-const CONFIG = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8').replace(/^﻿/, ''));
-// この名前のユーザーはログインすると自動で管理者モードになる（config.json の admin_user で変更可）
-const ADMIN_USER = CONFIG.admin_user || 'たかし';
+const CONFIG = {
+  admin_password: process.env.ADMIN_PASSWORD || fileConfig.admin_password || 'koshien-admin',
+};
+// この名前のユーザーはログインすると自動で管理者モードになる（環境変数 ADMIN_USER / config.json の admin_user）
+const ADMIN_USER = process.env.ADMIN_USER || fileConfig.admin_user || 'たかし';
 
 // 大会種別テンプレート: round(1始まり) → ラベル・基礎pt（基礎ptはステーク上限の基準）
 const TEMPLATES = {
@@ -50,17 +55,34 @@ const TEMPLATES = {
   },
 };
 
-// ---- DB オープン（旧スキーマは退避して作り直し）------------------------------
-const DB_PATH = path.join(__dirname, 'koshien.db');
-let db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
+// ---- DB オープン ------------------------------------------------------------
+// クラウド（Render等）では TURSO_DATABASE_URL を設定 → libsql の組み込みレプリカで
+// Turso に永続化（起動時に取り込み・書き込みは即時反映・定期同期）。
+// ローカルでは従来どおり better-sqlite3 の単独ファイル。
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'koshien.db');
+const TURSO_URL = process.env.TURSO_DATABASE_URL;
+let db;
+if (TURSO_URL) {
+  const Libsql = require('libsql');
+  db = new Libsql(DB_PATH, { syncUrl: TURSO_URL, authToken: process.env.TURSO_AUTH_TOKEN });
+  db.sync();
+  setInterval(() => {
+    try { db.sync(); } catch (e) { console.error('Turso同期失敗:', e.message); }
+  }, 60_000);
+  console.log('Turso 同期モードで起動しました');
+} else {
+  const Database = require('better-sqlite3');
+  db = new Database(DB_PATH);
+}
+try { db.pragma('journal_mode = WAL'); } catch { /* レプリカでは変更不可のことがある */ }
 {
   const matchCols = db.prepare('PRAGMA table_info(matches)').all();
   const predCols = db.prepare('PRAGMA table_info(predictions)').all();
   const legacy =
     (matchCols.length > 0 && !matchCols.some((c) => c.name === 'tournament_id')) ||
     (predCols.length > 0 && !predCols.some((c) => c.name === 'stake'));
-  if (legacy) {
+  if (legacy && !TURSO_URL) {
+    const Database = require('better-sqlite3');
     db.close();
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backup = path.join(__dirname, `koshien.legacy-${stamp}.db`);
@@ -148,7 +170,15 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   body TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS sessions (
+  token TEXT PRIMARY KEY,
+  payload TEXT NOT NULL,               -- {user_id, admin} のJSON
+  created_at TEXT NOT NULL
+);
 `);
+// 30日より古いセッションは掃除
+db.prepare("DELETE FROM sessions WHERE created_at < ?")
+  .run(new Date(Date.now() - 30 * 86400000).toISOString());
 
 // 既存DBへの追加カラム移行（データ保持のため ALTER で行う）
 {
@@ -188,8 +218,8 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   }
 }
 
-// ---- 認証（名前＋パスワード。トークンはメモリ保持＝サーバ再起動で要再ログイン）----
-const tokens = new Map(); // token → { user_id } | { admin: true }
+// ---- 認証（名前＋パスワード。トークンはDB保存＝サーバ再起動してもログイン維持）----
+const tokenCache = new Map(); // token → { user_id?, admin? }（DBの読み取りキャッシュ）
 function hashPassword(pw) {
   const salt = crypto.randomBytes(16).toString('hex');
   return `${salt}$${crypto.scryptSync(pw, salt, 32).toString('hex')}`;
@@ -201,11 +231,22 @@ function verifyPassword(pw, stored) {
 }
 function issueToken(payload) {
   const t = crypto.randomUUID();
-  tokens.set(t, payload);
+  db.prepare('INSERT INTO sessions (token, payload, created_at) VALUES (?, ?, ?)')
+    .run(t, JSON.stringify(payload), new Date().toISOString());
+  tokenCache.set(t, payload);
   return t;
 }
+function getSession(token) {
+  if (!token) return null;
+  if (tokenCache.has(token)) return tokenCache.get(token);
+  const row = db.prepare('SELECT payload FROM sessions WHERE token = ?').get(token);
+  if (!row) return null;
+  const payload = JSON.parse(row.payload);
+  tokenCache.set(token, payload);
+  return payload;
+}
 function auth(req) {
-  return tokens.get(req.get('x-token') || '') || null;
+  return getSession(req.get('x-token') || '');
 }
 // ベット系: 通常ユーザーは自分自身のみ、管理者は body.user_id で代理操作可
 // （管理者ユーザー = たかし は user_id を省略すると自分自身のベットになる）
@@ -491,7 +532,7 @@ app.get('/api/bootstrap', (req, res) => {
         : session.user_id)
     : null;
   // AI勝率予想は管理者のみ配信（x-admin-token は通常ログインと併用できる別枠トークン）
-  const adminSession = tokens.get(req.get('x-admin-token') || '');
+  const adminSession = getSession(req.get('x-admin-token') || '');
   const isAdmin = !!(session?.admin || adminSession?.admin);
   const now = new Date();
   const users = db.prepare('SELECT id, name FROM users ORDER BY id').all();
