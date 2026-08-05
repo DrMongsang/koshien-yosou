@@ -378,3 +378,4 @@ h3 { color: var(--navy); font-size: 14px; margin: 12px 0 8px; font-weight: 800; 
   .pick-row { flex-direction: column; }
   .topbar { flex-direction: column; align-items: stretch; }
 }
+/* deploy-check-20260805 */
