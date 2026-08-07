@@ -18,3 +18,5 @@ services:
         sync: false
       - key: DB_PATH
         value: /tmp/koshien-replica.db
+      - key: TZ
+        value: Asia/Tokyo
