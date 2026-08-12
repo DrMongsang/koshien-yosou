@@ -337,7 +337,9 @@ function roundInfo(tournament, round) {
   return roundsOf(tournament)[round - 1] || { label: `第${round}ラウンド`, base: 10 };
 }
 function deadlineOf(match) {
-  return new Date(match.scheduled_at || `${match.day}T08:00`);
+  // scheduled_at が壊れている（不正な文字列）場合でも 8:00 開始として扱い、API 全体を落とさない
+  const d = new Date(match.scheduled_at || `${match.day}T08:00`);
+  return Number.isNaN(d.getTime()) ? new Date(`${match.day}T08:00`) : d;
 }
 function isLocked(match, now = new Date()) {
   return now >= deadlineOf(match) || match.status === 'finished';
@@ -910,7 +912,20 @@ app.post('/api/admin/matches', (req, res) => {
       return res.status(400).json({ error: 'この大会に登録されていない学校が含まれています' });
     }
   }
-  const scheduledAt = time ? `${day}T${time}` : null;
+  // time は "HH:MM" 想定。"2026-08-12T13:30" のような ISO でも受け付ける
+  const hhmm = typeof time === 'string' ? (time.match(/(\d{1,2}):(\d{2})/) || [])[0] : null;
+  const scheduledAt = hhmm ? `${day}T${hhmm.padStart(5, '0')}` : null;
+  // id 指定時は既存試合の日程・カードを修正（誤登録の訂正用）
+  const { id } = req.body;
+  if (id != null) {
+    const exists = db.prepare('SELECT id FROM matches WHERE id = ?').get(id);
+    if (!exists) return res.status(404).json({ error: '試合が見つかりません' });
+    db.prepare(`UPDATE matches SET tournament_id = ?, round = ?, day = ?, game_no = ?,
+      team1_id = ?, team2_id = ?, scheduled_at = ? WHERE id = ?`)
+      .run(tournament_id, round, day, game_no || 1, team1_id, team2_id, scheduledAt, id);
+    broadcast();
+    return res.json({ id });
+  }
   const info = db.prepare(`INSERT INTO matches
     (tournament_id, round, day, game_no, team1_id, team2_id, scheduled_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)`)
