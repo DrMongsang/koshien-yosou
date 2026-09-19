@@ -186,6 +186,36 @@
     width: 100%;
     height: auto;
   }
+  /* Googleマップ。APIキー未設定・読込失敗時は非表示のままSVG軌跡（.map-fallback）が出る */
+  .gmap {
+    display: none;
+    width: 100%;
+    height: 220px;
+    border-radius: 4px;
+    background: var(--paper-soft);
+  }
+  body.maps-on .gmap { display: block; }
+  body.maps-on .map-fallback { display: none; }
+  .map-note {
+    display: none;
+    font-size: 11.5px;
+    color: var(--on-surface-dim);
+    margin-top: 8px;
+    line-height: 1.6;
+  }
+  body.maps-nokey .map-note { display: block; }
+  .trip-links {
+    display: flex;
+    gap: 14px;
+    margin-top: 10px;
+  }
+  .trip-links a {
+    font-size: 12.5px;
+    color: var(--teal);
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
+    padding-bottom: 1px;
+  }
   .path-empty {
     display: flex;
     align-items: center;
@@ -242,7 +272,7 @@
     max-height: 0;
     transition: max-height 0.25s ease;
   }
-  .trip-preview.open { max-height: 220px; }
+  .trip-preview.open { max-height: 320px; }
 
   .empty-state {
     font-size: 13.5px;
@@ -318,7 +348,9 @@
   </div>
 
   <div class="stage" id="liveStage" style="display:none;">
-    <svg class="path-canvas" id="liveCanvas" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="gmap" id="liveMap"></div>
+    <svg class="path-canvas map-fallback" id="liveCanvas" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="map-note">Googleマップを表示するには、このHTMLの GOOGLE_MAPS_API_KEY にAPIキーを設定してください。</div>
   </div>
 
   <section class="history">
@@ -332,6 +364,15 @@
 (function () {
   const STORAGE_KEY = 'rideLogTrips';
 
+  // Google Maps JavaScript API のキー。空のままならSVG軌跡表示のみで動く。
+  // Google Cloud で「Maps JavaScript API」を有効化し、
+  // HTTPリファラー制限に https://drmongsang.github.io/* を入れたキーを推奨。
+  const GOOGLE_MAPS_API_KEY = '';
+  const DEFAULT_CENTER = { lat: 35.7245, lng: 139.7970 }; // 浅草・日本堤
+  const ROUTE_COLOR = '#E0932E';
+  const START_COLOR = '#2F7A6E';
+  const END_COLOR = '#B14A3A';
+
   let recording = false;
   let watchId = null;
   let points = [];
@@ -342,6 +383,146 @@
   let pendingDelete = null;
 
   const $ = (id) => document.getElementById(id);
+
+  // ---- Google Maps 読み込み ----
+  let mapsReady = false;
+  let mapsFailed = false;
+  const mapsWaiters = [];
+
+  function mapsUsable() { return mapsReady && !mapsFailed && window.google && google.maps; }
+
+  function disableMaps() {
+    mapsFailed = true;
+    mapsWaiters.length = 0;
+    document.body.classList.remove('maps-on');
+  }
+
+  function loadGoogleMaps() {
+    if (!GOOGLE_MAPS_API_KEY) {
+      mapsFailed = true;
+      document.body.classList.add('maps-nokey');
+      return;
+    }
+    // キー無効・請求未設定などのときに Maps API が呼ぶグローバルフック
+    window.gm_authFailure = disableMaps;
+    window.__rideLogMapsInit = () => {
+      mapsReady = true;
+      document.body.classList.add('maps-on');
+      mapsWaiters.splice(0).forEach((fn) => fn());
+    };
+    const s = document.createElement('script');
+    s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(GOOGLE_MAPS_API_KEY)
+      + '&callback=__rideLogMapsInit&loading=async&language=ja&region=JP';
+    s.async = true;
+    s.onerror = disableMaps;
+    document.head.appendChild(s);
+  }
+
+  function whenMaps(fn) {
+    if (mapsUsable()) fn();
+    else if (!mapsFailed) mapsWaiters.push(fn);
+  }
+
+  function isDark() {
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function mapOptions(extra) {
+    const opts = Object.assign({
+      center: DEFAULT_CENTER,
+      zoom: 15,
+      disableDefaultUI: true,
+      clickableIcons: false,
+      gestureHandling: 'cooperative',
+    }, extra);
+    if (google.maps.ColorScheme) {
+      opts.colorScheme = isDark() ? google.maps.ColorScheme.DARK : google.maps.ColorScheme.LIGHT;
+    }
+    return opts;
+  }
+
+  function dotIcon(color) {
+    return {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 6,
+      fillColor: color,
+      fillOpacity: 1,
+      strokeColor: '#FFFFFF',
+      strokeWeight: 2,
+    };
+  }
+
+  function toLatLng(p) { return { lat: p.lat, lng: p.lng }; }
+
+  function boundsOf(pts) {
+    const b = new google.maps.LatLngBounds();
+    pts.forEach((p) => b.extend(toLatLng(p)));
+    return b;
+  }
+
+  // 記録した軌跡を地図に描く（履歴カード用）
+  function renderTripMap(el, pts) {
+    if (!mapsUsable() || pts.length < 2) return;
+    const map = new google.maps.Map(el, mapOptions({}));
+    new google.maps.Polyline({
+      map, path: pts.map(toLatLng),
+      strokeColor: ROUTE_COLOR, strokeWeight: 4, strokeOpacity: 0.95,
+    });
+    new google.maps.Marker({ map, position: toLatLng(pts[0]), icon: dotIcon(START_COLOR) });
+    new google.maps.Marker({ map, position: toLatLng(pts[pts.length - 1]), icon: dotIcon(END_COLOR) });
+    map.fitBounds(boundsOf(pts), 24);
+  }
+
+  // Googleマップアプリで始点→終点の自転車ルートを開くURL（APIキー不要）
+  function gmapsDirectionsUrl(pts) {
+    const a = pts[0], b = pts[pts.length - 1];
+    return 'https://www.google.com/maps/dir/?api=1'
+      + '&origin=' + a.lat.toFixed(6) + ',' + a.lng.toFixed(6)
+      + '&destination=' + b.lat.toFixed(6) + ',' + b.lng.toFixed(6)
+      + '&travelmode=bicycling';
+  }
+
+  // ---- ライブ地図（記録中） ----
+  let liveMap = null;
+  let livePolyline = null;
+  let liveMarker = null;
+  let liveStartMarker = null;
+
+  function ensureLiveMap() {
+    if (liveMap || !mapsUsable()) return;
+    liveMap = new google.maps.Map($('liveMap'), mapOptions({ zoom: 16, gestureHandling: 'greedy' }));
+    livePolyline = new google.maps.Polyline({
+      map: liveMap, path: [],
+      strokeColor: ROUTE_COLOR, strokeWeight: 4, strokeOpacity: 0.95,
+    });
+    liveStartMarker = new google.maps.Marker({ map: liveMap, icon: dotIcon(START_COLOR), visible: false });
+    liveMarker = new google.maps.Marker({ map: liveMap, icon: dotIcon(END_COLOR), visible: false, zIndex: 2 });
+  }
+
+  function resetLiveMap() {
+    whenMaps(() => {
+      ensureLiveMap();
+      if (!liveMap) return;
+      livePolyline.getPath().clear();
+      liveStartMarker.setVisible(false);
+      liveMarker.setVisible(false);
+      liveMap.setCenter(DEFAULT_CENTER);
+      liveMap.setZoom(16);
+    });
+  }
+
+  function pushLivePoint(p) {
+    if (!liveMap) return;
+    const ll = toLatLng(p);
+    livePolyline.getPath().push(new google.maps.LatLng(ll));
+    if (!liveStartMarker.getVisible()) {
+      liveStartMarker.setPosition(ll);
+      liveStartMarker.setVisible(true);
+    }
+    liveMarker.setPosition(ll);
+    liveMarker.setVisible(true);
+    liveMap.panTo(ll);
+  }
 
   function loadTrips() {
     try {
@@ -478,6 +659,7 @@
     }
     points.push(p);
     updateLiveStats();
+    pushLivePoint(p);
     if (points.length % 3 === 0) renderPathSVG($('liveCanvas'), points);
   }
 
@@ -503,6 +685,7 @@
     $('gpsMsg').style.display = 'none';
     $('liveStage').style.display = 'block';
     $('liveCanvas').innerHTML = '';
+    resetLiveMap();
     $('recordBtn').classList.add('recording');
     $('statusHead').textContent = '記録中';
     $('statusSub').textContent = 'もう一度押すと記録を終了します';
@@ -585,7 +768,12 @@
           </div>
         </div>
         <div class="trip-preview">
-          <svg class="path-canvas" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="gmap trip-map"></div>
+          <svg class="path-canvas map-fallback" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="trip-links">
+            <a class="trip-gmaps" href="${gmapsDirectionsUrl(trip.points)}" target="_blank" rel="noopener">Googleマップで開く</a>
+          </div>
+          <div class="map-note">Googleマップを表示するにはAPIキーの設定が必要です。</div>
         </div>
         <div class="confirm-row" style="display:none;">
           <span>この記録を削除しますか？</span>
@@ -595,11 +783,19 @@
       `;
       const preview = card.querySelector('.trip-preview');
       const svg = card.querySelector('svg');
+      const mapEl = card.querySelector('.trip-map');
       let opened = false;
+      let mapDrawn = false;
       card.querySelector('.trip-head').addEventListener('click', () => {
         opened = !opened;
         preview.classList.toggle('open', opened);
-        if (opened) renderPathSVG(svg, trip.points);
+        if (!opened) return;
+        renderPathSVG(svg, trip.points);
+        if (!mapDrawn) whenMaps(() => {
+          if (mapDrawn) return;
+          mapDrawn = true;
+          renderTripMap(mapEl, trip.points);
+        });
       });
       const delBtn = card.querySelector('.trip-del');
       const confirmRow = card.querySelector('.confirm-row');
@@ -623,6 +819,7 @@
   }
 
   renderTripList();
+  loadGoogleMaps();
 })();
 </script>
 </body>
