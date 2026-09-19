@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>RIDE LOG — 通勤ログ</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RIDE LOG">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#14161A">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%2314161A'/%3E%3Ctext x='50' y='64' font-size='54' text-anchor='middle' font-family='sans-serif'%3E%F0%9F%9A%B2%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #14161A;
+    --ink-soft: #22252A;
+    --paper: #EEEAE1;
+    --paper-soft: #E2DDD1;
+    --line: rgba(20,22,26,0.14);
+    --text: #1B1C1E;
+    --text-dim: #6B665C;
+    --amber: #E0932E;
+    --amber-deep: #B8721E;
+    --teal: #2F7A6E;
+    --danger: #B14A3A;
+    --card-bg: #F6F3EC;
+    --surface: var(--paper);
+    --on-surface: var(--text);
+    --on-surface-dim: var(--text-dim);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --surface: var(--ink);
+      --on-surface: #EDEAE3;
+      --on-surface-dim: #9B968B;
+      --card-bg: var(--ink-soft);
+      --line: rgba(237,234,227,0.12);
+      --paper-soft: #1B1D22;
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface: var(--ink);
+    --on-surface: #EDEAE3;
+    --on-surface-dim: #9B968B;
+    --card-bg: var(--ink-soft);
+    --line: rgba(237,234,227,0.12);
+    --paper-soft: #1B1D22;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--surface);
+    color: var(--on-surface);
+    font-family: 'Zen Kaku Gothic New', 'Hiragino Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: contain;
+    min-height: 100dvh;
+  }
+  body { touch-action: pan-y; }
+  .num { font-family: 'Space Grotesk', sans-serif; font-variant-numeric: tabular-nums; }
+
+  .wrap {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: calc(28px + env(safe-area-inset-top)) 20px calc(64px + env(safe-area-inset-bottom));
+  }
+
+  header.top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 22px;
+  }
+  header.top h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: -0.01em;
+    margin: 0;
+    line-height: 1;
+  }
+  header.top .sub {
+    font-size: 12.5px;
+    color: var(--on-surface-dim);
+    margin-top: 6px;
+  }
+  header.top .route {
+    font-size: 12px;
+    color: var(--on-surface-dim);
+    text-align: right;
+    line-height: 1.5;
+  }
+
+  .stage {
+    background: var(--card-bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 18px;
+  }
+
+  .live-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 18px;
+    margin-bottom: 18px;
+  }
+  .stat-label {
+    font-size: 11.5px;
+    color: var(--on-surface-dim);
+    margin-bottom: 3px;
+  }
+  .stat-value {
+    font-size: 28px;
+    font-weight: 500;
+    line-height: 1;
+  }
+  .stat-value .unit {
+    font-size: 13px;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    color: var(--on-surface-dim);
+    margin-left: 3px;
+  }
+
+  .record-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  button.record-btn {
+    flex: none;
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    border: 2px solid var(--amber);
+    background: transparent;
+    color: var(--amber);
+    cursor: pointer;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  button.record-btn .dot {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--amber);
+    transition: border-radius 0.15s ease;
+  }
+  button.record-btn.recording .dot {
+    border-radius: 4px;
+    background: var(--danger);
+  }
+  button.record-btn.recording {
+    border-color: var(--danger);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(177,74,58,0.25); }
+    50% { box-shadow: 0 0 0 8px rgba(177,74,58,0); }
+  }
+  .record-status {
+    font-size: 13px;
+    color: var(--on-surface-dim);
+  }
+  .record-status strong {
+    display: block;
+    color: var(--on-surface);
+    font-size: 15px;
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+
+  .gps-msg {
+    font-size: 12.5px;
+    color: var(--danger);
+    margin-top: 12px;
+  }
+
+  .path-canvas {
+    background: var(--paper-soft);
+    border-radius: 4px;
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .path-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 160px;
+    color: var(--on-surface-dim);
+    font-size: 13px;
+    background: var(--paper-soft);
+    border-radius: 4px;
+  }
+
+  section.history { margin-top: 30px; }
+  section.history h2 {
+    font-size: 15px;
+    font-weight: 500;
+    margin: 0 0 14px;
+  }
+
+  .trip-card {
+    border-top: 1px solid var(--line);
+    padding: 16px 0;
+    cursor: pointer;
+  }
+  .trip-card:last-child { border-bottom: 1px solid var(--line); }
+  .trip-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .trip-date {
+    font-size: 13px;
+    color: var(--on-surface-dim);
+  }
+  .trip-del {
+    background: none;
+    border: none;
+    color: var(--on-surface-dim);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 6px;
+  }
+  .trip-del:hover { color: var(--danger); }
+  .trip-stats {
+    display: flex;
+    gap: 22px;
+  }
+  .trip-stats .stat-value { font-size: 19px; }
+  .trip-stats .stat-label { font-size: 10.5px; }
+
+  .trip-preview {
+    margin-top: 12px;
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.25s ease;
+  }
+  .trip-preview.open { max-height: 220px; }
+
+  .empty-state {
+    font-size: 13.5px;
+    color: var(--on-surface-dim);
+    line-height: 1.7;
+    padding: 8px 0 4px;
+  }
+
+  .confirm-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-size: 12.5px;
+    margin-top: 8px;
+  }
+  .confirm-row button {
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--on-surface);
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .confirm-row button.danger {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>RIDE LOG</h1>
+      <div class="sub">通勤ログ・記録と可視化</div>
+    </div>
+    <div class="route">浅草・日本堤<br>→ 表参道</div>
+  </header>
+
+  <div class="stage">
+    <div class="live-grid">
+      <div>
+        <div class="stat-label">距離</div>
+        <div class="stat-value num" id="liveDistance">0.00<span class="unit">km</span></div>
+      </div>
+      <div>
+        <div class="stat-label">経過時間</div>
+        <div class="stat-value num" id="liveTime">00:00</div>
+      </div>
+      <div>
+        <div class="stat-label">現在速度</div>
+        <div class="stat-value num" id="liveSpeed">0.0<span class="unit">km/h</span></div>
+      </div>
+      <div>
+        <div class="stat-label">平均速度</div>
+        <div class="stat-value num" id="liveAvg">0.0<span class="unit">km/h</span></div>
+      </div>
+    </div>
+
+    <div class="record-row">
+      <button class="record-btn" id="recordBtn" aria-label="記録の開始・停止">
+        <div class="dot"></div>
+      </button>
+      <div class="record-status">
+        <strong id="statusHead">記録を開始</strong>
+        <span id="statusSub">ボタンを押すとGPSで走行を記録します</span>
+      </div>
+    </div>
+
+    <div class="gps-msg" id="gpsMsg" style="display:none;"></div>
+  </div>
+
+  <div class="stage" id="liveStage" style="display:none;">
+    <svg class="path-canvas" id="liveCanvas" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+
+  <section class="history">
+    <h2>これまでの記録</h2>
+    <div id="tripList"></div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  const STORAGE_KEY = 'rideLogTrips';
+
+  let recording = false;
+  let watchId = null;
+  let points = [];
+  let startTime = null;
+  let timerInterval = null;
+  let totalDistance = 0;
+  let maxSpeed = 0;
+  let pendingDelete = null;
+
+  const $ = (id) => document.getElementById(id);
+
+  function loadTrips() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  function saveTrips(trips) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  let trips = loadTrips();
+
+  function haversine(a, b) {
+    const R = 6371000;
+    const toRad = (d) => (d * Math.PI) / 180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const lat1 = toRad(a.lat), lat2 = toRad(b.lat);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  function fmtKm(m) { return (m / 1000).toFixed(2); }
+  function fmtKmh(mps) { return (mps * 3.6).toFixed(1); }
+  function fmtTime(ms) {
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  }
+  function fmtDate(iso) {
+    const d = new Date(iso);
+    return `${d.getMonth() + 1}/${d.getDate()} (${'日月火水木金土'[d.getDay()]}) ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+
+  function simplify(pts, maxPoints) {
+    if (pts.length <= maxPoints) return pts;
+    const step = pts.length / maxPoints;
+    const out = [];
+    for (let i = 0; i < maxPoints; i++) out.push(pts[Math.floor(i * step)]);
+    out.push(pts[pts.length - 1]);
+    return out;
+  }
+
+  function projectToPath(pts, w, h, pad) {
+    if (pts.length < 2) return null;
+    const lats = pts.map(p => p.lat);
+    const lngs = pts.map(p => p.lng);
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+    const centerLat = (minLat + maxLat) / 2;
+    const cos = Math.cos((centerLat * Math.PI) / 180);
+
+    const xs = lngs.map(lng => (lng - minLng) * cos);
+    const ys = lats.map(lat => (lat - minLat));
+    const xRange = Math.max(...xs) - Math.min(...xs) || 0.0001;
+    const yRange = Math.max(...ys) - Math.min(...ys) || 0.0001;
+    const scale = Math.min((w - pad * 2) / xRange, (h - pad * 2) / yRange);
+
+    const usedW = xRange * scale;
+    const usedH = yRange * scale;
+    const offX = (w - usedW) / 2;
+    const offY = (h - usedH) / 2;
+
+    const coords = xs.map((x, i) => {
+      const px = offX + x * scale;
+      const py = h - (offY + ys[i] * scale); // flip so north is up
+      return [px, py];
+    });
+    return coords;
+  }
+
+  function renderPathSVG(svgEl, pts) {
+    const w = 400, h = 220, pad = 22;
+    svgEl.innerHTML = '';
+    const coords = projectToPath(pts, w, h, pad);
+    if (!coords) return;
+
+    const ns = 'http://www.w3.org/2000/svg';
+    const path = document.createElementNS(ns, 'polyline');
+    path.setAttribute('points', coords.map(c => c.join(',')).join(' '));
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', '#E0932E');
+    path.setAttribute('stroke-width', '3');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    svgEl.appendChild(path);
+
+    const startDot = document.createElementNS(ns, 'circle');
+    startDot.setAttribute('cx', coords[0][0]);
+    startDot.setAttribute('cy', coords[0][1]);
+    startDot.setAttribute('r', 5);
+    startDot.setAttribute('fill', '#2F7A6E');
+    svgEl.appendChild(startDot);
+
+    const endDot = document.createElementNS(ns, 'circle');
+    const last = coords[coords.length - 1];
+    endDot.setAttribute('cx', last[0]);
+    endDot.setAttribute('cy', last[1]);
+    endDot.setAttribute('r', 5);
+    endDot.setAttribute('fill', '#B14A3A');
+    svgEl.appendChild(endDot);
+  }
+
+  function updateLiveStats() {
+    $('liveDistance').innerHTML = `${fmtKm(totalDistance)}<span class="unit">km</span>`;
+    const elapsed = Date.now() - startTime;
+    $('liveTime').textContent = fmtTime(elapsed);
+    const elapsedH = elapsed / 3600000;
+    const avg = elapsedH > 0 ? (totalDistance / 1000) / elapsedH : 0;
+    $('liveAvg').innerHTML = `${avg.toFixed(1)}<span class="unit">km/h</span>`;
+  }
+
+  function onPosition(pos) {
+    const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, t: Date.now() };
+    if (points.length > 0) {
+      const prev = points[points.length - 1];
+      const d = haversine(prev, p);
+      if (d > 1) totalDistance += d; // ignore GPS jitter under 1m
+      const dt = (p.t - prev.t) / 1000;
+      const instSpeed = dt > 0 ? d / dt : 0;
+      const speedMps = typeof pos.coords.speed === 'number' && pos.coords.speed >= 0 ? pos.coords.speed : instSpeed;
+      maxSpeed = Math.max(maxSpeed, speedMps);
+      $('liveSpeed').innerHTML = `${fmtKmh(speedMps)}<span class="unit">km/h</span>`;
+    }
+    points.push(p);
+    updateLiveStats();
+    if (points.length % 3 === 0) renderPathSVG($('liveCanvas'), points);
+  }
+
+  function onGeoError(err) {
+    const msg = $('gpsMsg');
+    msg.style.display = 'block';
+    if (err.code === 1) msg.textContent = '位置情報の利用が許可されていません。ブラウザの設定で許可してください。';
+    else msg.textContent = '位置情報を取得できませんでした。電波状況の良い場所で再度お試しください。';
+    stopRecording(false);
+  }
+
+  function startRecording() {
+    if (!navigator.geolocation) {
+      $('gpsMsg').style.display = 'block';
+      $('gpsMsg').textContent = 'この環境では位置情報が利用できません。';
+      return;
+    }
+    recording = true;
+    points = [];
+    totalDistance = 0;
+    maxSpeed = 0;
+    startTime = Date.now();
+    $('gpsMsg').style.display = 'none';
+    $('liveStage').style.display = 'block';
+    $('liveCanvas').innerHTML = '';
+    $('recordBtn').classList.add('recording');
+    $('statusHead').textContent = '記録中';
+    $('statusSub').textContent = 'もう一度押すと記録を終了します';
+
+    watchId = navigator.geolocation.watchPosition(onPosition, onGeoError, {
+      enableHighAccuracy: true,
+      maximumAge: 1000,
+      timeout: 15000,
+    });
+    timerInterval = setInterval(updateLiveStats, 1000);
+  }
+
+  function stopRecording(save) {
+    recording = false;
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    if (timerInterval) clearInterval(timerInterval);
+    watchId = null;
+    timerInterval = null;
+    $('recordBtn').classList.remove('recording');
+    $('statusHead').textContent = '記録を開始';
+    $('statusSub').textContent = 'ボタンを押すとGPSで走行を記録します';
+
+    if (save && points.length > 1) {
+      const duration = Date.now() - startTime;
+      const durationH = duration / 3600000;
+      const avgSpeed = durationH > 0 ? (totalDistance / 1000) / durationH : 0;
+      const trip = {
+        id: String(Date.now()),
+        date: new Date(startTime).toISOString(),
+        distance: totalDistance,
+        duration,
+        avgSpeed,
+        maxSpeed,
+        points: simplify(points, 200),
+      };
+      trips.unshift(trip);
+      saveTrips(trips);
+      renderTripList();
+    }
+    $('liveStage').style.display = 'none';
+    $('liveDistance').innerHTML = `0.00<span class="unit">km</span>`;
+    $('liveTime').textContent = '00:00';
+    $('liveSpeed').innerHTML = `0.0<span class="unit">km/h</span>`;
+    $('liveAvg').innerHTML = `0.0<span class="unit">km/h</span>`;
+    points = [];
+  }
+
+  $('recordBtn').addEventListener('click', () => {
+    if (recording) stopRecording(true);
+    else startRecording();
+  });
+
+  function renderTripList() {
+    const list = $('tripList');
+    list.innerHTML = '';
+    if (trips.length === 0) {
+      list.innerHTML = '<div class="empty-state">まだ記録がありません。記録を開始して最初のトリップを残しましょう。</div>';
+      return;
+    }
+    trips.forEach((trip) => {
+      const card = document.createElement('div');
+      card.className = 'trip-card';
+      card.innerHTML = `
+        <div class="trip-head">
+          <div class="trip-date">${fmtDate(trip.date)}</div>
+          <button class="trip-del" data-id="${trip.id}">削除</button>
+        </div>
+        <div class="trip-stats">
+          <div>
+            <div class="stat-label">距離</div>
+            <div class="stat-value num">${fmtKm(trip.distance)}<span class="unit">km</span></div>
+          </div>
+          <div>
+            <div class="stat-label">時間</div>
+            <div class="stat-value num">${fmtTime(trip.duration)}</div>
+          </div>
+          <div>
+            <div class="stat-label">平均速度</div>
+            <div class="stat-value num">${trip.avgSpeed.toFixed(1)}<span class="unit">km/h</span></div>
+          </div>
+        </div>
+        <div class="trip-preview">
+          <svg class="path-canvas" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+        <div class="confirm-row" style="display:none;">
+          <span>この記録を削除しますか？</span>
+          <button class="danger confirm-yes">削除する</button>
+          <button class="confirm-no">キャンセル</button>
+        </div>
+      `;
+      const preview = card.querySelector('.trip-preview');
+      const svg = card.querySelector('svg');
+      let opened = false;
+      card.querySelector('.trip-head').addEventListener('click', () => {
+        opened = !opened;
+        preview.classList.toggle('open', opened);
+        if (opened) renderPathSVG(svg, trip.points);
+      });
+      const delBtn = card.querySelector('.trip-del');
+      const confirmRow = card.querySelector('.confirm-row');
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        confirmRow.style.display = confirmRow.style.display === 'flex' ? 'none' : 'flex';
+        confirmRow.style.display = 'flex';
+      });
+      card.querySelector('.confirm-no').addEventListener('click', (e) => {
+        e.stopPropagation();
+        confirmRow.style.display = 'none';
+      });
+      card.querySelector('.confirm-yes').addEventListener('click', (e) => {
+        e.stopPropagation();
+        trips = trips.filter(t => t.id !== trip.id);
+        saveTrips(trips);
+        renderTripList();
+      });
+      list.appendChild(card);
+    });
+  }
+
+  renderTripList();
+})();
+</script>
+</body>
+</html>
