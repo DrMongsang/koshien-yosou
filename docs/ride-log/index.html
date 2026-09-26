@@ -30,6 +30,16 @@
     --surface: var(--paper);
     --on-surface: var(--text);
     --on-surface-dim: var(--text-dim);
+    --toast-bg: #1B1C1E;
+    --toast-fg: #EDEAE3;
+
+    /* Motion tokens：時間とイージングはここだけで決める */
+    --dur-fast: 120ms;
+    --dur-base: 220ms;
+    --dur-slow: 380ms;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
   @media (prefers-color-scheme: dark) {
@@ -40,6 +50,8 @@
       --card-bg: var(--ink-soft);
       --line: rgba(237,234,227,0.12);
       --paper-soft: #1B1D22;
+      --toast-bg: #EDEAE3;
+      --toast-fg: #1B1C1E;
     }
   }
   :root[data-theme="dark"] {
@@ -49,6 +61,14 @@
     --card-bg: var(--ink-soft);
     --line: rgba(237,234,227,0.12);
     --paper-soft: #1B1D22;
+    --toast-bg: #EDEAE3;
+    --toast-fg: #1B1C1E;
+  }
+
+  /* 動きを減らす設定の端末では、装飾的な動きを止める */
+  @media (prefers-reduced-motion: reduce) {
+    :root { --dur-fast: 0ms; --dur-base: 0ms; --dur-slow: 0ms; }
+    *, *::before, *::after { animation-duration: 0ms !important; animation-iteration-count: 1 !important; }
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -63,11 +83,12 @@
   }
   body { touch-action: pan-y; }
   .num { font-family: 'Space Grotesk', sans-serif; font-variant-numeric: tabular-nums; }
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
 
   .wrap {
     max-width: 480px;
     margin: 0 auto;
-    padding: calc(28px + env(safe-area-inset-top)) 20px calc(64px + env(safe-area-inset-bottom));
+    padding: calc(28px + env(safe-area-inset-top)) 20px calc(96px + env(safe-area-inset-bottom));
   }
 
   header.top {
@@ -103,7 +124,89 @@
     padding: 20px;
     margin-bottom: 18px;
   }
+  .stage.enter { animation: fadeUp var(--dur-slow) var(--ease-out) both; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
 
+  /* ---- Onboarding（初回だけ） ---- */
+  .onboard {
+    border-left: 3px solid var(--amber);
+    overflow: hidden;
+    transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
+  }
+  .onboard.leaving { opacity: 0; transform: translateY(-6px); }
+  .onboard h2 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 12px;
+  }
+  .onboard ol {
+    margin: 0 0 14px;
+    padding-left: 0;
+    list-style: none;
+    counter-reset: step;
+  }
+  .onboard li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 34px;
+    font-size: 13.5px;
+    line-height: 1.65;
+    margin-bottom: 8px;
+  }
+  .onboard li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0; top: 0;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--amber);
+    color: var(--ink);
+  }
+  .onboard .privacy {
+    font-size: 12px;
+    color: var(--on-surface-dim);
+    line-height: 1.6;
+    margin: 0 0 14px;
+  }
+  .onboard .actions { display: flex; align-items: center; gap: 16px; }
+  button.primary {
+    border: none;
+    background: var(--amber);
+    color: var(--ink);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 11px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: transform var(--dur-fast) var(--ease-out), filter var(--dur-fast);
+  }
+  button.primary:active { transform: scale(0.97); filter: brightness(0.95); }
+  button.link {
+    border: none; background: none;
+    color: var(--on-surface-dim);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 6px 2px;
+  }
+  .a2hs {
+    font-size: 12px;
+    color: var(--on-surface-dim);
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--line);
+    line-height: 1.6;
+  }
+
+  /* ---- ライブ表示 ---- */
   .live-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -119,6 +222,8 @@
     font-size: 28px;
     font-weight: 500;
     line-height: 1;
+    display: inline-block;
+    transform-origin: left center;
   }
   .stat-value .unit {
     font-size: 13px;
@@ -126,15 +231,21 @@
     color: var(--on-surface-dim);
     margin-left: 3px;
   }
+  .stat-value.bump { animation: bump var(--dur-base) var(--ease-spring); }
+  @keyframes bump {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.08); color: var(--amber); }
+    100% { transform: scale(1); }
+  }
 
   .record-row {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 18px;
   }
   button.record-btn {
     flex: none;
-    width: 64px; height: 64px;
+    width: 68px; height: 68px;
     border-radius: 50%;
     border: 2px solid var(--amber);
     background: transparent;
@@ -142,28 +253,73 @@
     cursor: pointer;
     position: relative;
     display: flex; align-items: center; justify-content: center;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    user-select: none;
+    transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-base);
   }
+  button.record-btn:active { transform: scale(0.92); }
   button.record-btn .dot {
-    width: 22px; height: 22px;
+    width: 24px; height: 24px;
     border-radius: 50%;
     background: var(--amber);
-    transition: border-radius 0.15s ease;
+    transition: border-radius var(--dur-base) var(--ease-out), background var(--dur-base), transform var(--dur-base) var(--ease-spring);
   }
   button.record-btn.recording .dot {
-    border-radius: 4px;
+    border-radius: 5px;
     background: var(--danger);
+    transform: scale(0.9);
   }
   button.record-btn.recording {
     border-color: var(--danger);
     animation: pulse 1.6s ease-in-out infinite;
   }
+  button.record-btn.holding { animation: none; }
   @keyframes pulse {
     0%, 100% { box-shadow: 0 0 0 0 rgba(177,74,58,0.25); }
     50% { box-shadow: 0 0 0 8px rgba(177,74,58,0); }
   }
+  /* 長押しの進捗リング */
+  .hold-ring {
+    position: absolute;
+    inset: -9px;
+    width: calc(100% + 18px);
+    height: calc(100% + 18px);
+    transform: rotate(-90deg);
+    pointer-events: none;
+  }
+  .hold-ring circle {
+    fill: none;
+    stroke-width: 4;
+    stroke-linecap: round;
+  }
+  .hold-ring .hold-track { stroke: transparent; }
+  .hold-ring .hold-fill {
+    stroke: var(--danger);
+    stroke-dasharray: 289.03;
+    stroke-dashoffset: 289.03;
+    opacity: 0;
+    transition: opacity var(--dur-fast);
+  }
+  button.record-btn.holding .hold-fill { opacity: 1; }
+  /* 開始時の波紋 */
+  .ripple {
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    border: 2px solid var(--amber);
+    pointer-events: none;
+    animation: ripple 620ms var(--ease-out) forwards;
+  }
+  @keyframes ripple {
+    from { transform: scale(1); opacity: 0.9; }
+    to { transform: scale(2); opacity: 0; }
+  }
+
   .record-status {
     font-size: 13px;
     color: var(--on-surface-dim);
+    min-width: 0;
   }
   .record-status strong {
     display: block;
@@ -172,6 +328,27 @@
     font-weight: 500;
     margin-bottom: 2px;
   }
+  .record-status .hint { transition: color var(--dur-fast); }
+  .record-status .hint.flash { color: var(--danger); }
+  .gps {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 11.5px;
+  }
+  .gps[hidden] { display: none; }
+  .gps-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--on-surface-dim);
+    transition: background var(--dur-base);
+  }
+  .gps-dot.searching { animation: blink 1s ease-in-out infinite; }
+  .gps-dot.good { background: var(--teal); }
+  .gps-dot.fair { background: var(--amber); }
+  .gps-dot.poor { background: var(--danger); }
+  @keyframes blink { 50% { opacity: 0.25; } }
 
   .gps-msg {
     font-size: 12.5px;
@@ -186,6 +363,11 @@
     width: 100%;
     height: auto;
   }
+  .path-canvas polyline.draw {
+    animation: draw var(--dur-slow) var(--ease-out) forwards;
+    animation-duration: 900ms;
+  }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
   /* Googleマップ。APIキー未設定・読込失敗時は非表示のままSVG軌跡（.map-fallback）が出る */
   .gmap {
     display: none;
@@ -216,17 +398,8 @@
     border-bottom: 1px solid currentColor;
     padding-bottom: 1px;
   }
-  .path-empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 160px;
-    color: var(--on-surface-dim);
-    font-size: 13px;
-    background: var(--paper-soft);
-    border-radius: 4px;
-  }
 
+  /* ---- 履歴 ---- */
   section.history { margin-top: 30px; }
   section.history h2 {
     font-size: 15px;
@@ -237,28 +410,80 @@
   .trip-card {
     border-top: 1px solid var(--line);
     padding: 16px 0;
-    cursor: pointer;
+    animation: fadeUp var(--dur-slow) var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 45ms);
   }
   .trip-card:last-child { border-bottom: 1px solid var(--line); }
+  .trip-card.new {
+    animation: cardIn 520ms var(--ease-spring) both, glow 1400ms var(--ease-out) both;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes glow {
+    from { box-shadow: inset 4px 0 0 var(--amber); background: rgba(224,147,46,0.10); }
+    to { box-shadow: inset 4px 0 0 transparent; background: transparent; }
+  }
+  .trip-card.leaving {
+    animation: cardOut var(--dur-base) var(--ease-in-out) both;
+    overflow: hidden;
+  }
+  @keyframes cardOut {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translateX(24px); }
+  }
   .trip-head {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
     margin-bottom: 10px;
   }
+  .trip-head-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .chev {
+    width: 8px; height: 8px;
+    border-right: 1.5px solid var(--on-surface-dim);
+    border-bottom: 1.5px solid var(--on-surface-dim);
+    transform: rotate(-45deg);
+    transition: transform var(--dur-base) var(--ease-out);
+    flex: none;
+    margin-top: -3px;
+  }
+  .trip-card.open .chev { transform: rotate(45deg); margin-top: -6px; }
   .trip-date {
     font-size: 13px;
     color: var(--on-surface-dim);
+  }
+  .badge {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--ink);
+    background: var(--amber);
+    border-radius: 3px;
+    padding: 2px 6px;
+    animation: badgeIn 600ms var(--ease-spring) both;
+    animation-delay: 500ms;
+  }
+  @keyframes badgeIn {
+    from { opacity: 0; transform: scale(0.6); }
+    to { opacity: 1; transform: none; }
   }
   .trip-del {
     background: none;
     border: none;
     color: var(--on-surface-dim);
+    font-family: inherit;
     font-size: 12px;
     cursor: pointer;
-    padding: 2px 6px;
+    padding: 6px 8px;
+    margin: -6px -8px -6px 0;
+    border-radius: 3px;
+    transition: color var(--dur-fast), background var(--dur-fast);
   }
-  .trip-del:hover { color: var(--danger); }
+  .trip-del:hover, .trip-del:active { color: var(--danger); background: rgba(177,74,58,0.08); }
   .trip-stats {
     display: flex;
     gap: 22px;
@@ -266,13 +491,15 @@
   .trip-stats .stat-value { font-size: 19px; }
   .trip-stats .stat-label { font-size: 10.5px; }
 
+  /* 高さを補間して開閉する（max-height の当て推量をやめる） */
   .trip-preview {
-    margin-top: 12px;
-    overflow: hidden;
-    max-height: 0;
-    transition: max-height 0.25s ease;
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--dur-slow) var(--ease-out);
   }
-  .trip-preview.open { max-height: 320px; }
+  .trip-preview > .inner { min-height: 0; overflow: hidden; }
+  .trip-card.open .trip-preview { grid-template-rows: 1fr; }
+  .trip-preview .inner > :first-child { margin-top: 12px; }
 
   .empty-state {
     font-size: 13.5px;
@@ -280,26 +507,49 @@
     line-height: 1.7;
     padding: 8px 0 4px;
   }
+  .empty-state svg { display: block; margin: 6px 0 12px; }
 
-  .confirm-row {
+  /* ---- Toast（元に戻す等の一時通知） ---- */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 16px);
+    opacity: 0;
+    pointer-events: none;
+    background: var(--toast-bg);
+    color: var(--toast-fg);
+    font-size: 13.5px;
+    padding: 12px 14px 12px 16px;
+    border-radius: 4px;
     display: flex;
-    gap: 10px;
     align-items: center;
-    font-size: 12.5px;
-    margin-top: 8px;
+    gap: 14px;
+    max-width: calc(100vw - 32px);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+    transition: transform var(--dur-base) var(--ease-out), opacity var(--dur-base) var(--ease-out);
+    z-index: 10;
   }
-  .confirm-row button {
-    border: 1px solid var(--line);
-    background: transparent;
-    color: var(--on-surface);
-    font-size: 12px;
-    padding: 4px 10px;
-    border-radius: 3px;
+  .toast.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+  .toast button {
+    border: none; background: none;
+    color: var(--amber);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 13.5px;
     cursor: pointer;
+    padding: 4px 2px;
+    white-space: nowrap;
   }
-  .confirm-row button.danger {
-    border-color: var(--danger);
-    color: var(--danger);
+  .toast button[hidden] { display: none; }
+
+  /* iOS Safari の触覚フィードバック用（見えないスイッチ） */
+  .haptic-switch {
+    position: absolute;
+    width: 1px; height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
   }
 </style>
 </head>
@@ -313,6 +563,21 @@
     </div>
     <div class="route">浅草・日本堤<br>→ 表参道</div>
   </header>
+
+  <section class="stage onboard" id="onboard" hidden>
+    <h2>はじめに</h2>
+    <ol>
+      <li>丸いボタンを押すと、GPSで走行の記録が始まります。</li>
+      <li>終了は<strong>長押し</strong>です。ポケットの中で誤って止まらないようにしています。</li>
+      <li>距離と時間、走った軌跡が下の履歴に残ります。</li>
+    </ol>
+    <p class="privacy">位置情報はこの端末の中だけに保存され、どこにも送信されません。次のボタンを押すと、ブラウザから位置情報の許可を求められます。</p>
+    <div class="actions">
+      <button class="primary" id="onboardStart">位置情報を許可して始める</button>
+      <button class="link" id="onboardSkip">あとで</button>
+    </div>
+    <div class="a2hs" id="a2hs" hidden>Safariの共有メニューから「ホーム画面に追加」すると、全画面で開けます。</div>
+  </section>
 
   <div class="stage">
     <div class="live-grid">
@@ -335,12 +600,17 @@
     </div>
 
     <div class="record-row">
-      <button class="record-btn" id="recordBtn" aria-label="記録の開始・停止">
-        <div class="dot"></div>
+      <button class="record-btn" id="recordBtn" aria-label="記録を開始" aria-pressed="false">
+        <svg class="hold-ring" viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="hold-track" cx="50" cy="50" r="46"></circle>
+          <circle class="hold-fill" id="holdFill" cx="50" cy="50" r="46"></circle>
+        </svg>
+        <span class="dot"></span>
       </button>
-      <div class="record-status">
+      <div class="record-status" aria-live="polite">
         <strong id="statusHead">記録を開始</strong>
-        <span id="statusSub">ボタンを押すとGPSで走行を記録します</span>
+        <span class="hint" id="statusSub">ボタンを押すとGPSで走行を記録します</span>
+        <span class="gps" id="gpsLine" hidden><i class="gps-dot" id="gpsDot"></i><span id="gpsText"></span></span>
       </div>
     </div>
 
@@ -360,9 +630,17 @@
 
 </div>
 
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <span id="toastText"></span>
+  <button id="toastAction" hidden></button>
+</div>
+
+<label class="haptic-switch" id="hapticLabel" aria-hidden="true"><input type="checkbox" switch tabindex="-1"></label>
+
 <script>
 (function () {
   const STORAGE_KEY = 'rideLogTrips';
+  const ONBOARD_KEY = 'rideLogOnboarded';
 
   // Google Maps JavaScript API のキー。空のままならSVG軌跡表示のみで動く。
   // Google Cloud で「Maps JavaScript API」を有効化し、
@@ -373,6 +651,9 @@
   const START_COLOR = '#2F7A6E';
   const END_COLOR = '#B14A3A';
 
+  const HOLD_MS = 650;          // 長押しで終了までの時間
+  const RING_LEN = 289.03;      // 進捗リングの周長（r=46）
+
   let recording = false;
   let watchId = null;
   let points = [];
@@ -380,9 +661,113 @@
   let timerInterval = null;
   let totalDistance = 0;
   let maxSpeed = 0;
-  let pendingDelete = null;
+  let gotFix = false;
+  let lastBumpStep = 0;
 
   const $ = (id) => document.getElementById(id);
+
+  // ---- 環境判定 ----
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isStandalone = window.navigator.standalone === true
+    || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  function reducedMotion() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  // ---- Haptics ----
+  // Android は navigator.vibrate。iOS Safari は vibrate が無いので、
+  // <input type="checkbox" switch> の切り替えで鳴る触覚フィードバックを流用する（ユーザー操作の中でだけ効く）。
+  const HAPTIC = {
+    tap: [10],
+    success: [12, 40, 24],
+    warn: [45],
+    milestone: [12, 30, 12, 30, 36],
+  };
+  function haptic(pattern) {
+    try {
+      if (typeof navigator.vibrate === 'function') { navigator.vibrate(pattern); return; }
+      if (isIOS) { $('hapticLabel').click(); }
+    } catch (e) { /* 触覚が無くても動作に影響させない */ }
+  }
+
+  // ---- Motion helpers ----
+  function bump(el) {
+    if (!el || reducedMotion()) return;
+    el.classList.remove('bump');
+    // 再生し直すために一度リフローを挟む
+    void el.offsetWidth;
+    el.classList.add('bump');
+  }
+  function animateNumber(el, from, to, duration, render) {
+    if (reducedMotion() || duration <= 0) { el.innerHTML = render(to); return; }
+    const t0 = performance.now();
+    const ease = (t) => 1 - Math.pow(1 - t, 3);
+    function frame(now) {
+      const t = Math.min(1, (now - t0) / duration);
+      el.innerHTML = render(from + (to - from) * ease(t));
+      if (t < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+  function afterAnimation(el, fn) {
+    if (reducedMotion()) { fn(); return; }
+    let done = false;
+    const finish = () => { if (done) return; done = true; fn(); };
+    el.addEventListener('animationend', finish, { once: true });
+    setTimeout(finish, 600);
+  }
+
+  // ---- Toast ----
+  let toastTimer = null;
+  let toastHandler = null;
+  function showToast(text, opts) {
+    opts = opts || {};
+    const toast = $('toast');
+    const btn = $('toastAction');
+    $('toastText').textContent = text;
+    if (toastHandler) btn.removeEventListener('click', toastHandler);
+    toastHandler = null;
+    if (opts.action && opts.onAction) {
+      btn.textContent = opts.action;
+      btn.hidden = false;
+      toastHandler = () => { hideToast(); opts.onAction(); };
+      btn.addEventListener('click', toastHandler);
+    } else {
+      btn.hidden = true;
+    }
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, opts.duration || 3200);
+  }
+  function hideToast() {
+    clearTimeout(toastTimer);
+    $('toast').classList.remove('show');
+  }
+
+  // ---- Storage ----
+  function loadTrips() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  function saveTrips(trips) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  function readFlag(key) {
+    try { return localStorage.getItem(key) === '1'; } catch (e) { return false; }
+  }
+  function writeFlag(key) {
+    try { localStorage.setItem(key, '1'); } catch (e) { /* 保存できなくても続行 */ }
+  }
+  let trips = loadTrips();
 
   // ---- Google Maps 読み込み ----
   let mapsReady = false;
@@ -524,24 +909,7 @@
     liveMap.panTo(ll);
   }
 
-  function loadTrips() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      return [];
-    }
-  }
-  function saveTrips(trips) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-  let trips = loadTrips();
-
+  // ---- 計算・整形 ----
   function haversine(a, b) {
     const R = 6371000;
     const toRad = (d) => (d * Math.PI) / 180;
@@ -566,6 +934,8 @@
     const d = new Date(iso);
     return `${d.getMonth() + 1}/${d.getDate()} (${'日月火水木金土'[d.getDay()]}) ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   }
+  const kmHtml = (m) => `${fmtKm(m)}<span class="unit">km</span>`;
+  const kmhHtml = (kmh) => `${kmh.toFixed(1)}<span class="unit">km/h</span>`;
 
   function simplify(pts, maxPoints) {
     if (pts.length <= maxPoints) return pts;
@@ -604,7 +974,8 @@
     return coords;
   }
 
-  function renderPathSVG(svgEl, pts) {
+  // animate=true のとき、線が始点から描かれていく
+  function renderPathSVG(svgEl, pts, animate) {
     const w = 400, h = 220, pad = 22;
     svgEl.innerHTML = '';
     const coords = projectToPath(pts, w, h, pad);
@@ -614,17 +985,26 @@
     const path = document.createElementNS(ns, 'polyline');
     path.setAttribute('points', coords.map(c => c.join(',')).join(' '));
     path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', '#E0932E');
+    path.setAttribute('stroke', ROUTE_COLOR);
     path.setAttribute('stroke-width', '3');
     path.setAttribute('stroke-linecap', 'round');
     path.setAttribute('stroke-linejoin', 'round');
     svgEl.appendChild(path);
 
+    if (animate && !reducedMotion() && typeof path.getTotalLength === 'function') {
+      const len = path.getTotalLength();
+      if (len > 0) {
+        path.style.strokeDasharray = String(len);
+        path.style.strokeDashoffset = String(len);
+        path.classList.add('draw');
+      }
+    }
+
     const startDot = document.createElementNS(ns, 'circle');
     startDot.setAttribute('cx', coords[0][0]);
     startDot.setAttribute('cy', coords[0][1]);
     startDot.setAttribute('r', 5);
-    startDot.setAttribute('fill', '#2F7A6E');
+    startDot.setAttribute('fill', START_COLOR);
     svgEl.appendChild(startDot);
 
     const endDot = document.createElementNS(ns, 'circle');
@@ -632,21 +1012,52 @@
     endDot.setAttribute('cx', last[0]);
     endDot.setAttribute('cy', last[1]);
     endDot.setAttribute('r', 5);
-    endDot.setAttribute('fill', '#B14A3A');
+    endDot.setAttribute('fill', END_COLOR);
     svgEl.appendChild(endDot);
   }
 
+  // ---- ライブ表示の更新 ----
   function updateLiveStats() {
-    $('liveDistance').innerHTML = `${fmtKm(totalDistance)}<span class="unit">km</span>`;
+    $('liveDistance').innerHTML = kmHtml(totalDistance);
     const elapsed = Date.now() - startTime;
     $('liveTime').textContent = fmtTime(elapsed);
     const elapsedH = elapsed / 3600000;
     const avg = elapsedH > 0 ? (totalDistance / 1000) / elapsedH : 0;
-    $('liveAvg').innerHTML = `${avg.toFixed(1)}<span class="unit">km/h</span>`;
+    $('liveAvg').innerHTML = kmhHtml(avg);
+
+    // 0.1km ごとに数字を弾ませる
+    const step = Math.floor(totalDistance / 100);
+    if (step > lastBumpStep) {
+      lastBumpStep = step;
+      bump($('liveDistance'));
+    }
+  }
+
+  function setGps(state, text) {
+    const line = $('gpsLine');
+    const dot = $('gpsDot');
+    if (!state) { line.hidden = true; return; }
+    line.hidden = false;
+    dot.className = 'gps-dot ' + state;
+    $('gpsText').textContent = text;
   }
 
   function onPosition(pos) {
     const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, t: Date.now() };
+    const acc = pos.coords.accuracy;
+
+    if (!gotFix) {
+      gotFix = true;
+      $('statusSub').textContent = 'もう一度長押しすると記録を終了します';
+      haptic(HAPTIC.tap);
+    }
+    if (typeof acc === 'number') {
+      const label = '±' + Math.round(acc) + 'm';
+      if (acc <= 12) setGps('good', 'GPS 良好 ' + label);
+      else if (acc <= 35) setGps('fair', 'GPS ふつう ' + label);
+      else setGps('poor', 'GPS 弱い ' + label);
+    }
+
     if (points.length > 0) {
       const prev = points[points.length - 1];
       const d = haversine(prev, p);
@@ -660,7 +1071,7 @@
     points.push(p);
     updateLiveStats();
     pushLivePoint(p);
-    if (points.length % 3 === 0) renderPathSVG($('liveCanvas'), points);
+    if (points.length % 3 === 0) renderPathSVG($('liveCanvas'), points, false);
   }
 
   function onGeoError(err) {
@@ -668,27 +1079,52 @@
     msg.style.display = 'block';
     if (err.code === 1) msg.textContent = '位置情報の利用が許可されていません。ブラウザの設定で許可してください。';
     else msg.textContent = '位置情報を取得できませんでした。電波状況の良い場所で再度お試しください。';
+    haptic(HAPTIC.warn);
     stopRecording(false);
+  }
+
+  // ---- 記録の開始・終了 ----
+  function spawnRipple() {
+    if (reducedMotion()) return;
+    const btn = $('recordBtn');
+    const r = document.createElement('span');
+    r.className = 'ripple';
+    btn.appendChild(r);
+    afterAnimation(r, () => r.remove());
   }
 
   function startRecording() {
     if (!navigator.geolocation) {
       $('gpsMsg').style.display = 'block';
       $('gpsMsg').textContent = 'この環境では位置情報が利用できません。';
+      haptic(HAPTIC.warn);
       return;
     }
     recording = true;
     points = [];
     totalDistance = 0;
     maxSpeed = 0;
+    gotFix = false;
+    lastBumpStep = 0;
     startTime = Date.now();
     $('gpsMsg').style.display = 'none';
-    $('liveStage').style.display = 'block';
+    const stage = $('liveStage');
+    stage.style.display = 'block';
+    stage.classList.remove('enter');
+    void stage.offsetWidth;
+    stage.classList.add('enter');
     $('liveCanvas').innerHTML = '';
     resetLiveMap();
-    $('recordBtn').classList.add('recording');
+
+    const btn = $('recordBtn');
+    btn.classList.add('recording');
+    btn.setAttribute('aria-pressed', 'true');
+    btn.setAttribute('aria-label', '長押しで記録を終了');
     $('statusHead').textContent = '記録中';
-    $('statusSub').textContent = 'もう一度押すと記録を終了します';
+    $('statusSub').textContent = 'GPSを取得しています…';
+    setGps('searching', 'GPS 取得中');
+    spawnRipple();
+    haptic(HAPTIC.tap);
 
     watchId = navigator.geolocation.watchPosition(onPosition, onGeoError, {
       enableHighAccuracy: true,
@@ -704,14 +1140,21 @@
     if (timerInterval) clearInterval(timerInterval);
     watchId = null;
     timerInterval = null;
-    $('recordBtn').classList.remove('recording');
+    cancelHold();
+    const btn = $('recordBtn');
+    btn.classList.remove('recording');
+    btn.setAttribute('aria-pressed', 'false');
+    btn.setAttribute('aria-label', '記録を開始');
     $('statusHead').textContent = '記録を開始';
     $('statusSub').textContent = 'ボタンを押すとGPSで走行を記録します';
+    setGps(null);
 
     if (save && points.length > 1) {
       const duration = Date.now() - startTime;
       const durationH = duration / 3600000;
       const avgSpeed = durationH > 0 ? (totalDistance / 1000) / durationH : 0;
+      const prevBest = trips.reduce((m, t) => Math.max(m, t.distance || 0), 0);
+      const isBest = trips.length > 0 && totalDistance > prevBest;
       const trip = {
         id: String(Date.now()),
         date: new Date(startTime).toISOString(),
@@ -723,51 +1166,152 @@
       };
       trips.unshift(trip);
       saveTrips(trips);
-      renderTripList();
+      renderTripList({ newId: trip.id, best: isBest });
+      if (isBest) {
+        haptic(HAPTIC.milestone);
+        showToast('自己ベスト更新。' + fmtKm(totalDistance) + ' km を記録しました');
+      } else {
+        haptic(HAPTIC.success);
+        showToast('記録を保存しました');
+      }
+    } else if (save) {
+      haptic(HAPTIC.warn);
+      showToast('位置が2点以上取れなかったため、保存しませんでした');
     }
     $('liveStage').style.display = 'none';
-    $('liveDistance').innerHTML = `0.00<span class="unit">km</span>`;
+    $('liveDistance').innerHTML = kmHtml(0);
     $('liveTime').textContent = '00:00';
     $('liveSpeed').innerHTML = `0.0<span class="unit">km/h</span>`;
-    $('liveAvg').innerHTML = `0.0<span class="unit">km/h</span>`;
+    $('liveAvg').innerHTML = kmhHtml(0);
     points = [];
   }
 
-  $('recordBtn').addEventListener('click', () => {
+  // ---- 記録ボタン：タップで開始、長押しで終了 ----
+  let holdRaf = null;
+  let holdStart = 0;
+  let holdDone = false;
+  let pointerActive = false;
+
+  function setRing(progress) {
+    $('holdFill').style.strokeDashoffset = String(RING_LEN * (1 - Math.max(0, Math.min(1, progress))));
+  }
+  function cancelHold() {
+    if (holdRaf) cancelAnimationFrame(holdRaf);
+    holdRaf = null;
+    $('recordBtn').classList.remove('holding');
+    setRing(0);
+  }
+  function beginHold() {
+    holdStart = performance.now();
+    holdDone = false;
+    $('recordBtn').classList.add('holding');
+    const tick = (now) => {
+      const p = (now - holdStart) / HOLD_MS;
+      setRing(p);
+      if (p >= 1) {
+        holdDone = true;
+        cancelHold();
+        haptic(HAPTIC.success);
+        stopRecording(true);
+        return;
+      }
+      holdRaf = requestAnimationFrame(tick);
+    };
+    holdRaf = requestAnimationFrame(tick);
+  }
+  function flashHint(text) {
+    const hint = $('statusSub');
+    const original = hint.textContent;
+    hint.textContent = text;
+    hint.classList.add('flash');
+    setTimeout(() => {
+      hint.classList.remove('flash');
+      if (recording) hint.textContent = original;
+    }, 1200);
+  }
+
+  const recordBtn = $('recordBtn');
+  recordBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+  recordBtn.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    pointerActive = true;
+    if (recording) {
+      haptic(HAPTIC.tap);
+      beginHold();
+    }
+  });
+  function releasePointer(e) {
+    if (!pointerActive) return;
+    pointerActive = false;
+    // 長押しで終了した直後の「離す」は、開始と解釈しない
+    if (holdDone) { holdDone = false; return; }
+    if (recording) {
+      if (holdRaf) {
+        cancelHold();
+        flashHint('長押しで終了します');
+      }
+      return;
+    }
+    if (e.type === 'pointerup') startRecording();
+  }
+  recordBtn.addEventListener('pointerup', releasePointer);
+  recordBtn.addEventListener('pointercancel', releasePointer);
+  recordBtn.addEventListener('pointerleave', (e) => { if (recording) releasePointer(e); });
+  // キーボード操作は即時トグル（長押しの代替）
+  recordBtn.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
     if (recording) stopRecording(true);
     else startRecording();
   });
 
-  function renderTripList() {
-    const list = $('tripList');
-    list.innerHTML = '';
-    if (trips.length === 0) {
-      list.innerHTML = '<div class="empty-state">まだ記録がありません。記録を開始して最初のトリップを残しましょう。</div>';
-      return;
-    }
-    trips.forEach((trip) => {
-      const card = document.createElement('div');
-      card.className = 'trip-card';
-      card.innerHTML = `
-        <div class="trip-head">
-          <div class="trip-date">${fmtDate(trip.date)}</div>
-          <button class="trip-del" data-id="${trip.id}">削除</button>
+  // ---- 履歴 ----
+  let lastDeleted = null;
+
+  function emptyStateHtml() {
+    const a2hs = (isIOS && !isStandalone)
+      ? '<br>Safariの共有メニューから「ホーム画面に追加」すると、全画面で開けます。' : '';
+    return `<div class="empty-state">
+      <svg width="120" height="40" viewBox="0 0 120 40" aria-hidden="true">
+        <polyline points="6,30 30,12 58,26 86,8 114,22" fill="none" stroke="${ROUTE_COLOR}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 5"/>
+        <circle cx="6" cy="30" r="3.5" fill="${START_COLOR}"/><circle cx="114" cy="22" r="3.5" fill="${END_COLOR}"/>
+      </svg>
+      まだ記録がありません。丸いボタンを押して、最初のトリップを残しましょう。${a2hs}
+    </div>`;
+  }
+
+  function buildCard(trip, index, opts) {
+    const card = document.createElement('div');
+    card.className = 'trip-card';
+    card.style.setProperty('--i', String(Math.min(index, 8)));
+    const isNew = opts && opts.newId === trip.id;
+    if (isNew) card.classList.add('new');
+    const badge = (isNew && opts.best) ? '<span class="badge">自己ベスト</span>' : '';
+    card.innerHTML = `
+      <div class="trip-head" role="button" tabindex="0" aria-expanded="false">
+        <div class="trip-head-left">
+          <span class="chev" aria-hidden="true"></span>
+          <span class="trip-date">${fmtDate(trip.date)}</span>
+          ${badge}
         </div>
-        <div class="trip-stats">
-          <div>
-            <div class="stat-label">距離</div>
-            <div class="stat-value num">${fmtKm(trip.distance)}<span class="unit">km</span></div>
-          </div>
-          <div>
-            <div class="stat-label">時間</div>
-            <div class="stat-value num">${fmtTime(trip.duration)}</div>
-          </div>
-          <div>
-            <div class="stat-label">平均速度</div>
-            <div class="stat-value num">${trip.avgSpeed.toFixed(1)}<span class="unit">km/h</span></div>
-          </div>
+        <button class="trip-del" aria-label="この記録を削除">削除</button>
+      </div>
+      <div class="trip-stats">
+        <div>
+          <div class="stat-label">距離</div>
+          <div class="stat-value num v-dist">${kmHtml(trip.distance)}</div>
         </div>
-        <div class="trip-preview">
+        <div>
+          <div class="stat-label">時間</div>
+          <div class="stat-value num v-time">${fmtTime(trip.duration)}</div>
+        </div>
+        <div>
+          <div class="stat-label">平均速度</div>
+          <div class="stat-value num v-avg">${kmhHtml(trip.avgSpeed)}</div>
+        </div>
+      </div>
+      <div class="trip-preview">
+        <div class="inner">
           <div class="gmap trip-map"></div>
           <svg class="path-canvas map-fallback" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid meet"></svg>
           <div class="trip-links">
@@ -775,49 +1319,102 @@
           </div>
           <div class="map-note">Googleマップを表示するにはAPIキーの設定が必要です。</div>
         </div>
-        <div class="confirm-row" style="display:none;">
-          <span>この記録を削除しますか？</span>
-          <button class="danger confirm-yes">削除する</button>
-          <button class="confirm-no">キャンセル</button>
-        </div>
-      `;
-      const preview = card.querySelector('.trip-preview');
-      const svg = card.querySelector('svg');
-      const mapEl = card.querySelector('.trip-map');
-      let opened = false;
-      let mapDrawn = false;
-      card.querySelector('.trip-head').addEventListener('click', () => {
-        opened = !opened;
-        preview.classList.toggle('open', opened);
-        if (!opened) return;
-        renderPathSVG(svg, trip.points);
-        if (!mapDrawn) whenMaps(() => {
-          if (mapDrawn) return;
-          mapDrawn = true;
-          renderTripMap(mapEl, trip.points);
-        });
+      </div>
+    `;
+
+    // 新しく保存したカードは数字を 0 から数え上げる
+    if (isNew) {
+      animateNumber(card.querySelector('.v-dist'), 0, trip.distance, 700, kmHtml);
+      animateNumber(card.querySelector('.v-time'), 0, trip.duration, 700, (v) => fmtTime(v));
+      animateNumber(card.querySelector('.v-avg'), 0, trip.avgSpeed, 700, kmhHtml);
+    }
+
+    const head = card.querySelector('.trip-head');
+    const svg = card.querySelector('svg.path-canvas');
+    const mapEl = card.querySelector('.trip-map');
+    let mapDrawn = false;
+    const toggle = () => {
+      const open = card.classList.toggle('open');
+      head.setAttribute('aria-expanded', String(open));
+      haptic(HAPTIC.tap);
+      if (!open) return;
+      renderPathSVG(svg, trip.points, true);
+      if (!mapDrawn) whenMaps(() => {
+        if (mapDrawn) return;
+        mapDrawn = true;
+        renderTripMap(mapEl, trip.points);
       });
-      const delBtn = card.querySelector('.trip-del');
-      const confirmRow = card.querySelector('.confirm-row');
-      delBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        confirmRow.style.display = confirmRow.style.display === 'flex' ? 'none' : 'flex';
-        confirmRow.style.display = 'flex';
-      });
-      card.querySelector('.confirm-no').addEventListener('click', (e) => {
-        e.stopPropagation();
-        confirmRow.style.display = 'none';
-      });
-      card.querySelector('.confirm-yes').addEventListener('click', (e) => {
-        e.stopPropagation();
-        trips = trips.filter(t => t.id !== trip.id);
-        saveTrips(trips);
-        renderTripList();
-      });
-      list.appendChild(card);
+    };
+    head.addEventListener('click', toggle);
+    head.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
     });
+
+    // 削除は確認ダイアログではなく「元に戻す」で取り消せるようにする
+    card.querySelector('.trip-del').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = trips.findIndex(t => t.id === trip.id);
+      if (idx < 0) return;
+      lastDeleted = { trip, index: idx };
+      trips.splice(idx, 1);
+      saveTrips(trips);
+      haptic(HAPTIC.warn);
+      card.classList.add('leaving');
+      afterAnimation(card, () => {
+        card.remove();
+        if (trips.length === 0) $('tripList').innerHTML = emptyStateHtml();
+      });
+      showToast('記録を削除しました', {
+        action: '元に戻す',
+        duration: 6000,
+        onAction: () => {
+          if (!lastDeleted) return;
+          const { trip: t, index } = lastDeleted;
+          lastDeleted = null;
+          trips.splice(Math.min(index, trips.length), 0, t);
+          saveTrips(trips);
+          renderTripList({ newId: t.id });
+          haptic(HAPTIC.success);
+        },
+      });
+    });
+    return card;
   }
 
+  function renderTripList(opts) {
+    const list = $('tripList');
+    list.innerHTML = '';
+    if (trips.length === 0) {
+      list.innerHTML = emptyStateHtml();
+      return;
+    }
+    trips.forEach((trip, i) => list.appendChild(buildCard(trip, i, opts)));
+  }
+
+  // ---- Onboarding ----
+  function dismissOnboard() {
+    writeFlag(ONBOARD_KEY);
+    const el = $('onboard');
+    el.classList.add('leaving');
+    const hide = () => { el.hidden = true; };
+    if (reducedMotion()) hide();
+    else setTimeout(hide, 240);
+  }
+  function setupOnboard() {
+    if (readFlag(ONBOARD_KEY)) return;
+    const el = $('onboard');
+    el.hidden = false;
+    el.classList.add('enter');
+    if (isIOS && !isStandalone) $('a2hs').hidden = false;
+    $('onboardStart').addEventListener('click', () => {
+      haptic(HAPTIC.tap);
+      dismissOnboard();
+      startRecording();
+    });
+    $('onboardSkip').addEventListener('click', dismissOnboard);
+  }
+
+  setupOnboard();
   renderTripList();
   loadGoogleMaps();
 })();
